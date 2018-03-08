@@ -1,0 +1,36 @@
+<idea-plugin>
+  <id>com.openmind.intellij.s3uploadplugin</id>
+  <name>S3 Upload Plugin</name>
+  <version>1.0</version>
+  <vendor email="flavio.peri@openmindonline.it" url="http://www.openmindonline.it/">Openmind</vendor>
+
+  <description><![CDATA[
+      S3 Upload Plugin
+    ]]></description>
+
+  <change-notes><![CDATA[
+      No change notes
+    ]]>
+  </change-notes>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+  <idea-version since-build="162.0"/>
+
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+
+  <extensions defaultExtensionNs="com.intellij">
+      <postStartupActivity implementation="com.openmind.intellij.extension.S3UploadPluginPostStartupActivity"/>
+  </extensions>
+
+  <actions>
+      <group id="S3UploadPlugin.Menu" text="Upload to S3" description="Upload to S3" popup="true">
+          <add-to-group group-id="EditorPopupMenu" anchor="last"  />
+          <add-to-group group-id="ProjectViewPopupMenu" relative-to-action="CutCopyPasteGroup" anchor="after" />
+      </group>
+  </actions>
+
+</idea-plugin>
