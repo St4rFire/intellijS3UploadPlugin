@@ -33,6 +33,7 @@ public class AmazonS3Helper {
     private static final String PATCH_PATH = "patch";
 
     private static final String S3_BUCKET_KEY = "bucket.name";
+    private static final String PROJECT_NAME = "project.name";
     private static final String LAST_VERSIONS_PATH_KEY = "last.versions.path";
     private static final String VERSIONS_PATH_KEY = "versions.path";
     private static final String PATCH_PATH_KEY = "patch.path";
@@ -54,6 +55,133 @@ public class AmazonS3Helper {
     public static void setSingleProject(boolean isSingleProject)
     {
         AmazonS3Helper.isSingleProject = isSingleProject;
+    }
+
+
+    /**
+     * Get list of files indicating
+     * @param project
+     * @return
+     */
+    @NotNull
+    public static List<String> getVersionFiles(@NotNull Project project) {
+        final String projectName = getProjectName(project);
+        final String bucketName = getBucketName(projectName);
+        final String lastVersionsPath = getLastVersionsPath();
+
+        try {
+            AmazonS3 s3Client = getS3Client();
+
+            ListObjectsV2Request request = new ListObjectsV2Request()
+                .withBucketName(bucketName)
+                .withPrefix(lastVersionsPath);
+
+            ListObjectsV2Result listing = s3Client.listObjectsV2(request);
+            return listing.getObjectSummaries().stream()
+                .map(s -> s.getKey().replaceFirst(lastVersionsPath, ""))
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+
+        } catch (Exception ex) {
+            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
+        }
+        return Lists.newArrayList();
+    }
+
+
+
+    /**
+     * Upload to S3
+     * @param project
+     * @param fileToUpload
+     * @param originalFile
+     * @param versionFile
+     */
+    public static void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
+        @NotNull VirtualFile originalFile, @NotNull String versionFile) {
+
+        // todo check existence
+        final String projectName = getProjectName(project);
+        final String bucketName = getBucketName(projectName);
+        final String lastVersionsPath = getLastVersionsPath();
+
+        try {
+            // connect to S3
+            final AmazonS3 s3Client = getS3Client();
+
+            // get current project version
+            String versionFilePath = lastVersionsPath + versionFile;
+            S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
+            String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
+
+            String deployPath = getVersionsPath()
+                + version + File.separator
+                + getPatchPath()
+                + getDeployedProjectPath(versionFile, projectName)
+                + convertToDeployPath(fileToUpload, originalFile);;
+
+            // upload file
+            s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
+            NotificationGuiHelper.show("Uploaded to " + deployPath, NotificationType.INFORMATION);
+
+        } catch (Exception ex) {
+            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
+        }
+    }
+
+    @NotNull
+    private static String getProjectName(@NotNull Project project)
+    {
+        return customProperties.getProperty(PROJECT_NAME, project.getName());
+    }
+
+    @NotNull
+    private static String getBucketName(@NotNull String projectName)
+    {
+        return customProperties.getProperty(S3_BUCKET_KEY, projectName + S3_BUCKET_SUFFIX);
+    }
+
+    @NotNull
+    private static String getLastVersionsPath()
+    {
+        return customProperties.getProperty(LAST_VERSIONS_PATH_KEY, LAST_VERSIONS_PATH) + File.separator;
+    }
+
+    @NotNull
+    private static String getVersionsPath()
+    {
+        return customProperties.getProperty(VERSIONS_PATH_KEY, VERSIONS_PATH) + File.separator;
+    }
+
+    @NotNull
+    private static String getPatchPath()
+    {
+        return customProperties.getProperty(PATCH_PATH_KEY, PATCH_PATH) + File.separator;
+    }
+
+    /**
+     * Path inside patch folder
+     * @param versionFile
+     * @param projectName
+     * @return
+     */
+    @NotNull
+    private static String getDeployedProjectPath(@NotNull String versionFile, @NotNull String projectName)
+    {
+        String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
+        if (deployedProjectName != null) {
+            return deployedProjectName
+                + (StringUtils.isNotEmpty(deployedProjectName) ? File.separator : StringUtils.EMPTY);
+        }
+
+        // skip containing folder if there is only one project
+        if (isSingleProject) {
+            return StringUtils.EMPTY;
+        }
+
+        return projectName
+            + (versionFile.contains(ESB_PROJECT_SUFFIX) ? ESB_PROJECT_SUFFIX : WEBAPP_PROJECT_SUFFIX)
+            + File.separator;
     }
 
 
@@ -96,126 +224,6 @@ public class AmazonS3Helper {
         }
 
         return relativePath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
-    }
-
-
-
-    /**
-     * Get list of files indicating
-     * @param project
-     * @return
-     */
-    @NotNull
-    public static List<String> getVersionFiles(@NotNull Project project) {
-        final String bucketName = getBucketName(project);
-        final String lastVersionsPath = getLastVersionsPath();
-
-        try {
-            AmazonS3 s3Client = getS3Client();
-
-            ListObjectsV2Request request = new ListObjectsV2Request()
-                .withBucketName(bucketName)
-                .withPrefix(lastVersionsPath);
-
-            ListObjectsV2Result listing = s3Client.listObjectsV2(request);
-            return listing.getObjectSummaries().stream()
-                .map(s -> s.getKey().replaceFirst(lastVersionsPath, ""))
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toList());
-
-        } catch (Exception ex) {
-            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
-        }
-        return Lists.newArrayList();
-    }
-
-
-
-    /**
-     * Upload to S3
-     * @param project
-     * @param fileToUpload
-     * @param originalFile
-     * @param versionFile
-     */
-    public static void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
-        @NotNull VirtualFile originalFile, @NotNull String versionFile) {
-
-        // todo check existence
-        final String bucketName = getBucketName(project);
-        final String lastVersionsPath = getLastVersionsPath();
-
-        try {
-            // connect to S3
-            final AmazonS3 s3Client = getS3Client();
-
-            // get current project version
-            String versionFilePath = lastVersionsPath + versionFile;
-            S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
-            String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
-
-            String deployPath = getVersionsPath()
-                + version + File.separator
-                + getPatchPath()
-                + getDeployedProjectPath(versionFile, project)
-                + convertToDeployPath(fileToUpload, originalFile);;
-
-            // upload file
-            s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
-            NotificationGuiHelper.show("Uploaded to " + deployPath, NotificationType.INFORMATION);
-
-        } catch (Exception ex) {
-            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
-        }
-    }
-
-
-    @NotNull
-    private static String getBucketName(@NotNull Project project)
-    {
-        return customProperties.getProperty(S3_BUCKET_KEY, project.getName() + S3_BUCKET_SUFFIX);
-    }
-
-    @NotNull
-    private static String getLastVersionsPath()
-    {
-        return customProperties.getProperty(LAST_VERSIONS_PATH_KEY, LAST_VERSIONS_PATH) + File.separator;
-    }
-
-    @NotNull
-    private static String getVersionsPath()
-    {
-        return customProperties.getProperty(VERSIONS_PATH_KEY, VERSIONS_PATH) + File.separator;
-    }
-
-    @NotNull
-    private static String getPatchPath()
-    {
-        return customProperties.getProperty(PATCH_PATH_KEY, PATCH_PATH) + File.separator;
-    }
-
-    /**
-     * Path inside patch folder
-     * @param versionFile
-     * @param project
-     * @return
-     */
-    @NotNull
-    private static String getDeployedProjectPath(@NotNull String versionFile, @NotNull Project project)
-    {
-        String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
-        if (StringUtils.isNotBlank(deployedProjectName)) {
-            return deployedProjectName + File.separator;
-        }
-
-        // skip containing folder if there is only one project
-        if (isSingleProject) {
-            return StringUtils.EMPTY;
-        }
-
-        return project.getName()
-            + (versionFile.contains(ESB_PROJECT_SUFFIX) ? ESB_PROJECT_SUFFIX : WEBAPP_PROJECT_SUFFIX)
-            + File.separator;
     }
 
 

@@ -32,7 +32,7 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
 
         // add UploadFileToS3Actions
         List<String> versionFiles = AmazonS3Helper.getVersionFiles(project);
-        AmazonS3Helper.setSingleProject(versionFiles.size() > 1);
+        AmazonS3Helper.setSingleProject(versionFiles.size() == 1);
 
         for(String versionFile : versionFiles) {
             String versionFileName = versionFile.substring(0, versionFile.lastIndexOf('.'));
