@@ -3,7 +3,9 @@ package com.openmind.intellij.extension;
 import static com.intellij.notification.NotificationType.INFORMATION;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -13,6 +15,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.openmind.intellij.action.ScrollToClassFileAction;
 import com.openmind.intellij.action.UploadFileToS3Action;
+import com.openmind.intellij.bean.UploadInfo;
 import com.openmind.intellij.helper.AmazonS3Helper;
 import com.openmind.intellij.helper.NotificationGuiHelper;
 
@@ -42,13 +45,15 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
         }
 
         // add actions
-        List<String> versionFiles = AmazonS3Helper.getVersionFiles(project);
-        AmazonS3Helper.setSingleProject(versionFiles.size() == 1);
+        List<UploadInfo> uploadInfos = AmazonS3Helper.getVersionFiles(project).stream()
+            .map(v -> new UploadInfo(v))
+            .collect(Collectors.toList());
 
-        for(String versionFile : versionFiles) {
-            String versionFileName = versionFile.substring(0, versionFile.lastIndexOf('.'));
-            AnAction action = new UploadFileToS3Action(versionFileName, versionFile);
-            am.registerAction("S3UploadPlugin.UploadAction" + versionFileName, action);
+        AmazonS3Helper.setSingleProject(uploadInfos.size() == 1);
+
+        for(UploadInfo uploadInfo : uploadInfos) {
+            AnAction action = new UploadFileToS3Action(uploadInfo);
+            am.registerAction("S3UploadPlugin.UploadAction" + uploadInfo.getFileName(), action);
             group.add(action);
         }
 

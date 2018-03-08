@@ -4,6 +4,7 @@ import static com.intellij.notification.NotificationType.*;
 
 import java.io.File;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
@@ -18,9 +19,11 @@ import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.openmind.intellij.bean.UploadInfo;
 
 
 /**
@@ -42,8 +45,12 @@ public class AmazonS3Helper {
     private static final String PATCH_PATH_KEY = "patch.path";
     private static final String DEPLOY_PATH_KEY = "deploy.path"; // relative to patch folder
 
-    private static final String ESB_PROJECT_SUFFIX = "-esb";
-    private static final String WEBAPP_PROJECT_SUFFIX = "-product-webapp";
+    private static final ImmutableMap<String,String> PROJECT_NAME_FROM_INFO_FILE_TO_DEPLOYED =
+        ImmutableMap.<String, String>builder()
+        .put("esb",         "esb")
+        .put("magnolia",    "webapp")
+        .put("hybris",      "todo")
+        .build();
     private static final String SRC_MAIN = "/src/main/";
 
     private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
@@ -80,13 +87,13 @@ public class AmazonS3Helper {
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
 
+        AmazonS3 s3Client = getS3Client(project);
+
+        ListObjectsV2Request request = new ListObjectsV2Request()
+            .withBucketName(bucketName)
+            .withPrefix(lastVersionsPath);
+
         try {
-            AmazonS3 s3Client = getS3Client(project);
-
-            ListObjectsV2Request request = new ListObjectsV2Request()
-                .withBucketName(bucketName)
-                .withPrefix(lastVersionsPath);
-
             ListObjectsV2Result listing = s3Client.listObjectsV2(request);
             return listing.getObjectSummaries().stream()
                 .map(s -> s.getKey().replaceFirst(lastVersionsPath, ""))
@@ -106,30 +113,27 @@ public class AmazonS3Helper {
      * @param project
      * @param fileToUpload
      * @param originalFile
-     * @param versionFile
+     * @param uploadInfo
      */
     public static void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
-        @NotNull VirtualFile originalFile, @NotNull String versionFile) {
+        @NotNull VirtualFile originalFile, @NotNull UploadInfo uploadInfo) {
 
-        // todo check existence
         final String projectName = getProjectName(project);
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
 
+        // connect to S3
+        final AmazonS3 s3Client = getS3Client(project);
+
+        // get current project version
+        String versionFilePath = lastVersionsPath + uploadInfo.getFullFileName();
+        S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
+        String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
+
         try {
-            // connect to S3
-            final AmazonS3 s3Client = getS3Client(project);
-
-            // get current project version
-            String versionFilePath = lastVersionsPath + versionFile;
-            S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
-            String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
-
-            String deployPath = getVersionsPath()
-                + version + File.separator
-                + getPatchPath()
-                + getDeployedProjectPath(versionFile, projectName)
-                + convertToDeployPath(fileToUpload, originalFile);;
+            String patchPath = getVersionsPath() + version + File.separator + getPatchPath();
+            String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadInfo, projectName);
+            String deployPath = deployedProjectPath + getDeployPath(fileToUpload, originalFile);
 
             // upload file
             s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
@@ -172,30 +176,60 @@ public class AmazonS3Helper {
 
     /**
      * Path inside patch folder
-     * @param versionFile
+     * @param s3Client
+     * @param bucketName
+     * @param patchPath
+     * @param uploadInfo
      * @param projectName
      * @return
+     * @throws IllegalArgumentException
      */
     @NotNull
-    private static String getDeployedProjectPath(@NotNull String versionFile, @NotNull String projectName)
+    private static String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
+        @NotNull String patchPath, @NotNull UploadInfo uploadInfo,
+        @NotNull String projectName) throws IllegalArgumentException
     {
         String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
         if (deployedProjectName != null) {
-            return deployedProjectName
+            return patchPath + deployedProjectName
                 + (StringUtils.isNotEmpty(deployedProjectName) ? File.separator : StringUtils.EMPTY);
         }
 
-        // skip containing folder if there is only one project
         if (isSingleProject) {
             return StringUtils.EMPTY;
         }
 
-        return projectName
-            + (versionFile.contains(ESB_PROJECT_SUFFIX) ? ESB_PROJECT_SUFFIX : WEBAPP_PROJECT_SUFFIX)
-            + File.separator;
+        // get "webapp" from "magnolia"
+        final String deployedProjectSuffix = PROJECT_NAME_FROM_INFO_FILE_TO_DEPLOYED.get(uploadInfo.getProjectName());
+
+        // search in s3 a folder with calculated suffix
+        ListObjectsV2Request request = new ListObjectsV2Request()
+            .withBucketName(bucketName)
+            .withPrefix(patchPath);
+
+        try {
+            ListObjectsV2Result listing = s3Client.listObjectsV2(request);
+            Optional<String> matchingProject = listing.getObjectSummaries().stream()
+                .map(s -> StringUtils.substringBefore(s.getKey().replaceFirst(patchPath, ""), "/"))
+                .distinct()
+                .filter(s -> !s.isEmpty() && StringUtils.equals(StringUtils.substringAfterLast(s, "-"), deployedProjectSuffix))
+                .findFirst();
+
+            if (matchingProject.isPresent()) {
+                deployedProjectName = matchingProject.get();
+            }
+
+        } catch (Exception ex) {
+            NotificationGuiHelper.showEvent("Error " + ex.getMessage(), ERROR);
+        }
+
+        if (StringUtils.isEmpty(deployedProjectName)) {
+            throw new IllegalArgumentException("Could not get map " + uploadInfo.getProjectName()
+                + " to daployed project, tried suffix: " + deployedProjectSuffix);
+        }
+
+        return patchPath + deployedProjectName + File.separator;
     }
-
-
 
 
     /**
@@ -206,31 +240,26 @@ public class AmazonS3Helper {
      * @return
      */
     @NotNull
-    public static String convertToDeployPath(@NotNull VirtualFile fileToUpload, @NotNull VirtualFile originalFile)
+    public static String getDeployPath(@NotNull VirtualFile fileToUpload, @NotNull VirtualFile originalFile)
+        throws IllegalArgumentException
     {
         String originalPath = originalFile.getCanonicalPath();
-        if (originalPath == null || !originalPath.contains(SRC_MAIN))
-        {
+        if (originalPath == null || !originalPath.contains(SRC_MAIN)) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        String relativePath = originalPath.substring(originalPath.indexOf(SRC_MAIN) + SRC_MAIN.length());
+        String relativePath = StringUtils.substringAfter(originalPath, SRC_MAIN);
 
-        if (relativePath.startsWith("java"))
-        {
+        if (relativePath.startsWith("java")) {
             relativePath = relativePath.replaceFirst("java", "WEB-INF/classes");
-        }
-        else if (relativePath.startsWith("resources"))
-        {
+
+        } else if (relativePath.startsWith("resources")) {
             relativePath = relativePath.replaceFirst("resources", "WEB-INF/classes");
-        }
-        else if (relativePath.startsWith("webapp"))
-        {
+
+        } else if (relativePath.startsWith("webapp")) {
             relativePath = relativePath.replaceFirst("webapp/", "");
 
-        }
-        else
-        {
+        } else {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 

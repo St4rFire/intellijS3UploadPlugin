@@ -6,7 +6,6 @@ import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -15,6 +14,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
+import com.openmind.intellij.bean.UploadInfo;
 import com.openmind.intellij.helper.AmazonS3Helper;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationGuiHelper;
@@ -25,11 +25,11 @@ import com.openmind.intellij.helper.NotificationGuiHelper;
  */
 public class UploadFileToS3Action extends AnAction {
 
-    private String versionFile;
+    private UploadInfo uploadInfo;
 
-    public UploadFileToS3Action(@Nullable String text, @Nullable String versionFile){
-        super(text, null, null);
-        this.versionFile = versionFile;
+    public UploadFileToS3Action(@Nullable UploadInfo uploadInfo){
+        super(uploadInfo.getFileName(), null, null);
+        this.uploadInfo = uploadInfo;
     }
 
     /**
@@ -48,7 +48,7 @@ public class UploadFileToS3Action extends AnAction {
         }
 
         // upload to S3
-        AmazonS3Helper.uploadFile(project, fileToUpload, originalFile, versionFile);
+        AmazonS3Helper.uploadFile(project, fileToUpload, originalFile, uploadInfo);
     }
 
     @Override
