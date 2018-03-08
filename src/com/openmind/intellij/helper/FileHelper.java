@@ -19,12 +19,6 @@ import com.intellij.psi.PsiJavaFile;
 public class FileHelper
 {
 
-    private static final String ESB_PROJECT_SUFFIX = "-esb";
-
-    private static final String WEBAPP_PROJECT_SUFFIX = "-product-webapp";
-
-    private static final String SRC_MAIN = "/src/main/";
-
     @Nullable
     public static VirtualFile getCompiledFile(@NotNull PsiJavaFile psiJavaFile)
     {
@@ -44,57 +38,7 @@ public class FileHelper
     }
 
 
-    /**
-     * Convert original path to path to upload
-     *
-     * @param fileToUpload
-     * @param originalFile
-     * @return
-     */
-    @NotNull
-    public static String getDeployPath(@NotNull VirtualFile fileToUpload, @NotNull VirtualFile originalFile)
-    {
-        String originalPath = originalFile.getCanonicalPath();
-        if (originalPath == null || !originalPath.contains(SRC_MAIN))
-        {
-            throw new IllegalArgumentException("Could not get deploy originalPath");
-        }
 
-        String relativePath = originalPath.substring(originalPath.indexOf(SRC_MAIN) + SRC_MAIN.length());
-
-        if (relativePath.startsWith("java"))
-        {
-            relativePath = relativePath.replaceFirst("java", "WEB-INF/classes");
-        }
-        else if (relativePath.startsWith("resources"))
-        {
-            relativePath = relativePath.replaceFirst("resources", "WEB-INF/classes");
-        }
-        else if (relativePath.startsWith("webapp"))
-        {
-            relativePath = relativePath.replaceFirst("webapp/", "");
-
-        }
-        else
-        {
-            throw new IllegalArgumentException("Could not get deploy originalPath");
-        }
-
-        return relativePath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
-    }
-
-
-    /**
-     * Get project folder from versionFile name
-     *
-     * @param versionFile
-     * @return
-     */
-    @NotNull
-    public static String getProjectFolder(String versionFile, String projectName)
-    {
-        return projectName + (versionFile.contains(ESB_PROJECT_SUFFIX) ? ESB_PROJECT_SUFFIX : WEBAPP_PROJECT_SUFFIX);
-    }
 
     /**
      * Read text from file
@@ -118,23 +62,22 @@ public class FileHelper
         }
     }
 
-    @Nullable
+    @NotNull
     public static Properties getCustomProperties(@NotNull Project project)
     {
+        Properties prop = new Properties();
         File file = new File(project.getBasePath() + File.separator + "s3upload.properties");
         if (file.exists())
         {
-            Properties prop = new Properties();
             try
             {
                 prop.load(new FileInputStream(file));
-                return prop;
             }
             catch (IOException e)
             {
                 e.printStackTrace();
             }
         }
-        return null;
+        return prop;
     }
 }

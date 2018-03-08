@@ -27,8 +27,13 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             return;
         }
 
+        final Properties customProperties = FileHelper.getCustomProperties(project); // metto in startup?
+        AmazonS3Helper.setCustomProperties(customProperties);
+
         // add UploadFileToS3Actions
         List<String> versionFiles = AmazonS3Helper.getVersionFiles(project);
+        AmazonS3Helper.setSingleProject(versionFiles.size() > 1);
+
         for(String versionFile : versionFiles) {
             String versionFileName = versionFile.substring(0, versionFile.lastIndexOf('.'));
             AnAction action = new UploadFileToS3Action(versionFileName, versionFile);
