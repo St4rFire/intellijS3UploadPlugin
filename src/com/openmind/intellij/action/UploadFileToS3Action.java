@@ -1,5 +1,6 @@
 package com.openmind.intellij.action;
 
+import static com.intellij.notification.NotificationType.*;
 import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 
 import org.jetbrains.annotations.NotNull;
@@ -42,7 +43,7 @@ public class UploadFileToS3Action extends AnAction {
         final VirtualFile fileToUpload = getFileToUpload(psiFile, originalFile);
 
         if (fileToUpload == null) {
-            NotificationGuiHelper.show("File to upload not found", NotificationType.ERROR);
+            NotificationGuiHelper.showEventAndBaloon("File to upload not found", ERROR);
             return;
         }
 

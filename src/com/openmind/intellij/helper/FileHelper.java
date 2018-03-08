@@ -63,10 +63,10 @@ public class FileHelper
     }
 
     @NotNull
-    public static Properties getCustomProperties(@NotNull Project project)
+    public static Properties getProperties(@NotNull String filePath)
     {
         Properties prop = new Properties();
-        File file = new File(project.getBasePath() + File.separator + "s3upload.properties");
+        File file = new File(filePath);
         if (file.exists())
         {
             try

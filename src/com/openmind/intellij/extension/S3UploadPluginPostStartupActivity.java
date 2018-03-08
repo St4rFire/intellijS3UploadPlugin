@@ -1,7 +1,8 @@
 package com.openmind.intellij.extension;
 
+import static com.intellij.notification.NotificationType.INFORMATION;
+
 import java.util.List;
-import java.util.Properties;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -13,10 +14,11 @@ import com.intellij.openapi.startup.StartupActivity;
 import com.openmind.intellij.action.ScrollToClassFileAction;
 import com.openmind.intellij.action.UploadFileToS3Action;
 import com.openmind.intellij.helper.AmazonS3Helper;
-import com.openmind.intellij.helper.FileHelper;
+import com.openmind.intellij.helper.NotificationGuiHelper;
 
 
 public class S3UploadPluginPostStartupActivity implements StartupActivity {
+
 
     public void runActivity(@NotNull Project project) {
 
@@ -27,10 +29,19 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             return;
         }
 
-        final Properties customProperties = FileHelper.getCustomProperties(project); // metto in startup?
-        AmazonS3Helper.setCustomProperties(customProperties);
+        AmazonS3Helper.loadCustomProperties(project);
 
-        // add UploadFileToS3Actions
+        try
+        {
+            AmazonS3Helper.checkSystemVars(project);
+        }
+        catch (IllegalArgumentException e)
+        {
+            NotificationGuiHelper.showEvent("S3UploadPlugin disabled: " + e.getMessage(), INFORMATION);
+            return;
+        }
+
+        // add actions
         List<String> versionFiles = AmazonS3Helper.getVersionFiles(project);
         AmazonS3Helper.setSingleProject(versionFiles.size() == 1);
 
@@ -46,5 +57,6 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
         am.registerAction("S3UploadPlugin.ScrollToClassFile", scrollToClassFileAction);
         group.add(scrollToClassFileAction);
 
+        NotificationGuiHelper.showEvent("S3UploadPlugin ready", INFORMATION);
     }
 }

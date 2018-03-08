@@ -1,5 +1,7 @@
 package com.openmind.intellij.helper;
 
+import static com.intellij.notification.NotificationType.*;
+
 import java.io.File;
 import java.util.List;
 import java.util.Properties;
@@ -17,7 +19,6 @@ import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.Lists;
-import com.intellij.notification.NotificationType;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 
@@ -32,6 +33,8 @@ public class AmazonS3Helper {
     private static final String VERSIONS_PATH = "versions";
     private static final String PATCH_PATH = "patch";
 
+    // override keys in custom properties file
+    private static final String S3_PROPERTIES_FILE = "s3upload.properties";
     private static final String S3_BUCKET_KEY = "bucket.name";
     private static final String PROJECT_NAME = "project.name";
     private static final String LAST_VERSIONS_PATH_KEY = "last.versions.path";
@@ -43,13 +46,21 @@ public class AmazonS3Helper {
     private static final String WEBAPP_PROJECT_SUFFIX = "-product-webapp";
     private static final String SRC_MAIN = "/src/main/";
 
+    private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
+    private static final String AWS_SYSTEM_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
+    private static final String AWS_PROPERTY_ACCESS_KEY = "aws.accessKeyId";
+    private static final String AWS_PROPERTY_SECRET_ACCESS_KEY = "aws.secretKey";
+
     private static Properties customProperties = new Properties();
     private static boolean isSingleProject = false;
 
 
-    public static void setCustomProperties(@NotNull Properties customProperties)
+    public static void loadCustomProperties(@NotNull Project project)
     {
-        AmazonS3Helper.customProperties = customProperties;
+        AmazonS3Helper.customProperties = FileHelper.getProperties(
+            project.getBasePath()
+            + File.separator
+            + S3_PROPERTIES_FILE);
     }
 
     public static void setSingleProject(boolean isSingleProject)
@@ -70,7 +81,7 @@ public class AmazonS3Helper {
         final String lastVersionsPath = getLastVersionsPath();
 
         try {
-            AmazonS3 s3Client = getS3Client();
+            AmazonS3 s3Client = getS3Client(project);
 
             ListObjectsV2Request request = new ListObjectsV2Request()
                 .withBucketName(bucketName)
@@ -83,7 +94,7 @@ public class AmazonS3Helper {
                 .collect(Collectors.toList());
 
         } catch (Exception ex) {
-            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
+            NotificationGuiHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
         }
         return Lists.newArrayList();
     }
@@ -107,7 +118,7 @@ public class AmazonS3Helper {
 
         try {
             // connect to S3
-            final AmazonS3 s3Client = getS3Client();
+            final AmazonS3 s3Client = getS3Client(project);
 
             // get current project version
             String versionFilePath = lastVersionsPath + versionFile;
@@ -122,10 +133,10 @@ public class AmazonS3Helper {
 
             // upload file
             s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
-            NotificationGuiHelper.show("Uploaded to " + deployPath, NotificationType.INFORMATION);
+            NotificationGuiHelper.showEventAndBaloon("Uploaded to " + deployPath, INFORMATION);
 
         } catch (Exception ex) {
-            NotificationGuiHelper.show("Error " + ex.getMessage(), NotificationType.ERROR);
+            NotificationGuiHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
         }
     }
 
@@ -228,12 +239,41 @@ public class AmazonS3Helper {
 
 
 
-    private static AmazonS3 getS3Client()
+    public static void checkSystemVars(@NotNull Project project) throws IllegalArgumentException
     {
+        String projectPrefix = getProjectName(project).toUpperCase() + "_";
+        String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
+        String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
+
+        if (StringUtils.isEmpty(System.getenv(key)) || StringUtils.isEmpty(System.getenv(secret))) {
+
+            throw new IllegalArgumentException("System Variables " + key + " and " + secret + " not found");
+        }
+    }
+
+    private static AmazonS3 getS3Client(@NotNull Project project)
+    {
+        setSystemPropertiesFromEnvs(project);
         final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
             .withRegion(Regions.EU_WEST_1)
             .build();
         return s3Client;
     }
+
+
+    /**
+     * Update system properties before any call based on current project
+     * @param project
+     */
+    private static void setSystemPropertiesFromEnvs(@NotNull Project project)
+    {
+        String projectPrefix = getProjectName(project).toUpperCase() + "_";
+        String awsAccessKey = System.getenv(projectPrefix + AWS_SYSTEM_ACCESS_KEY);
+        String awsSecretAccessKey = System.getenv(projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY);
+
+        System.setProperty(AWS_PROPERTY_ACCESS_KEY, awsAccessKey);
+        System.setProperty(AWS_PROPERTY_SECRET_ACCESS_KEY, awsSecretAccessKey);
+    }
+
 
 }
