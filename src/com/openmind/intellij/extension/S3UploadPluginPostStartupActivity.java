@@ -5,7 +5,6 @@ import static com.intellij.notification.NotificationType.INFORMATION;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.openapi.actionSystem.ActionManager;
