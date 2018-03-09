@@ -36,6 +36,14 @@ import com.openmind.intellij.bean.UploadInfo;
  */
 public class AmazonS3Helper {
 
+
+    // credentials
+    private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
+    private static final String AWS_SYSTEM_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
+    private static final String AWS_PROPERTY_ACCESS_KEY = "aws.accessKeyId";
+    private static final String AWS_PROPERTY_SECRET_ACCESS_KEY = "aws.secretKey";
+
+    // path defaults
     private static final String S3_BUCKET_SUFFIX = "-releases";
     private static final String LAST_VERSIONS_PATH = "last";
     private static final String VERSIONS_PATH = "versions";
@@ -50,6 +58,7 @@ public class AmazonS3Helper {
     private static final String PATCH_PATH_KEY = "patch.path";
     private static final String DEPLOY_PATH_KEY = "deploy.path"; // relative to patch folder
 
+    // project recognition
     private static final String MAPPING_PROJECT = "mapping.project.";
     private static final HashMap<String,String> PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
@@ -58,6 +67,7 @@ public class AmazonS3Helper {
         .put("hybris",      "todo")
         .build());
 
+    // src deploy path transformation
     private static final String MAPPING_SRC = "mapping.src.";
     private static final String SRC_MAIN = "/src/main/";
     private static final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOYED =
@@ -67,11 +77,6 @@ public class AmazonS3Helper {
             .put("webapp/",      "")
             .build());
 
-    // credentials
-    private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
-    private static final String AWS_SYSTEM_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
-    private static final String AWS_PROPERTY_ACCESS_KEY = "aws.accessKeyId";
-    private static final String AWS_PROPERTY_SECRET_ACCESS_KEY = "aws.secretKey";
 
     private static Properties customProperties = new Properties();
 
@@ -282,7 +287,7 @@ public class AmazonS3Helper {
             .findFirst();
 
         if (!mapping.isPresent()) {
-            throw new IllegalArgumentException("Could not get deploy originalPath");
+            throw new IllegalArgumentException("Could not get deploy path "+ originalPath);
         }
 
         String convertedPath = pathInSrcMain.replaceFirst(mapping.get().getKey(), mapping.get().getValue());
