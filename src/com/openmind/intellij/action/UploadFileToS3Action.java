@@ -50,7 +50,7 @@ public class UploadFileToS3Action extends AnAction {
         }
 
         // upload to S3
-        amazonS3Helper.uploadFile(project, fileToUpload, originalFile, uploadInfo);
+        amazonS3Helper.uploadFile(fileToUpload, originalFile, uploadInfo);
     }
 
     @Override

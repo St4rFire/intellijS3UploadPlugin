@@ -43,7 +43,7 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
         }
 
         // add actions
-        List<UploadInfo> uploadInfos = amazonS3Helper.getVersionFiles(project).stream()
+        List<UploadInfo> uploadInfos = amazonS3Helper.getVersionFiles().stream()
             .map(v -> new UploadInfo(v))
             .collect(Collectors.toList());
 

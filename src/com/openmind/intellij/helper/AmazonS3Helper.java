@@ -79,17 +79,19 @@ public class AmazonS3Helper {
 
 
     private Properties customProperties;
+    private Project project;
 
 
     public AmazonS3Helper(@NotNull Project project) throws IllegalArgumentException
     {
-        checkSystemVars(project);
-        loadCustomProperties(project);
+        this.project = project;
+        loadCustomProperties();
+        checkSystemVars();
     }
 
-    private void checkSystemVars(@NotNull Project project) throws IllegalArgumentException
+    private void checkSystemVars() throws IllegalArgumentException
     {
-        String projectPrefix = getProjectName(project).toUpperCase() + "_";
+        String projectPrefix = getProjectName().toUpperCase() + "_";
         String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
         String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
 
@@ -99,7 +101,7 @@ public class AmazonS3Helper {
         }
     }
 
-    private void loadCustomProperties(@NotNull Project project)
+    private void loadCustomProperties()
     {
         final String basePath = project.getBasePath();
         customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
@@ -122,16 +124,15 @@ public class AmazonS3Helper {
 
     /**
      * Get list of files indicating
-     * @param project
      * @return
      */
     @NotNull
-    public List<String> getVersionFiles(@NotNull Project project) {
-        final String projectName = getProjectName(project);
+    public List<String> getVersionFiles() {
+        final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
 
-        AmazonS3 s3Client = getS3Client(project);
+        AmazonS3 s3Client = getS3Client();
 
         ListObjectsV2Request request = new ListObjectsV2Request()
             .withBucketName(bucketName)
@@ -153,20 +154,19 @@ public class AmazonS3Helper {
 
     /**
      * Upload to S3
-     * @param project
      * @param fileToUpload
      * @param originalFile
      * @param uploadInfo
      */
-    public void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
+    public void uploadFile(@NotNull VirtualFile fileToUpload,
         @NotNull VirtualFile originalFile, @NotNull UploadInfo uploadInfo) {
 
-        final String projectName = getProjectName(project);
+        final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
 
         // connect to S3
-        final AmazonS3 s3Client = getS3Client(project);
+        final AmazonS3 s3Client = getS3Client();
 
         // get current project version
         String versionFilePath = lastVersionsPath + uploadInfo.getFullFileName();
@@ -188,7 +188,7 @@ public class AmazonS3Helper {
     }
 
     @NotNull
-    private String getProjectName(@NotNull Project project)
+    private String getProjectName()
     {
         return customProperties.getProperty(PROJECT_NAME, project.getName());
     }
@@ -312,27 +312,21 @@ public class AmazonS3Helper {
         return convertedPath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
     }
 
-
-
-
-
-    private AmazonS3 getS3Client(@NotNull Project project)
+    private AmazonS3 getS3Client()
     {
-        setSystemPropertiesFromEnvs(project);
+        setSystemPropertiesFromEnvs();
         final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
             .withRegion(Regions.EU_WEST_1)
             .build();
         return s3Client;
     }
 
-
     /**
      * Update system properties before any call based on current project
-     * @param project
      */
-    private void setSystemPropertiesFromEnvs(@NotNull Project project)
+    private void setSystemPropertiesFromEnvs()
     {
-        String projectPrefix = getProjectName(project).toUpperCase() + "_";
+        String projectPrefix = getProjectName().toUpperCase() + "_";
         String awsAccessKey = System.getenv(projectPrefix + AWS_SYSTEM_ACCESS_KEY);
         String awsSecretAccessKey = System.getenv(projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY);
 
