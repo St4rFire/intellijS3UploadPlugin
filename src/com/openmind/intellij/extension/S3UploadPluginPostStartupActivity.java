@@ -47,7 +47,7 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             .map(v -> new UploadInfo(v))
             .collect(Collectors.toList());
 
-        for(UploadInfo uploadInfo : uploadInfos) {
+        for (UploadInfo uploadInfo : uploadInfos) {
             AnAction action = new UploadFileToS3Action(uploadInfo, amazonS3Helper);
             am.registerAction("S3UploadPlugin.UploadAction" + uploadInfo.getFileName(), action);
             group.add(action);
