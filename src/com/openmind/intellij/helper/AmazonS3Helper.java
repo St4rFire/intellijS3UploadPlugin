@@ -1,9 +1,13 @@
 package com.openmind.intellij.helper;
 
 import static com.intellij.notification.NotificationType.*;
+import static java.io.File.*;
+import static org.apache.commons.lang.StringUtils.*;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -21,6 +25,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.bean.UploadInfo;
@@ -45,36 +50,51 @@ public class AmazonS3Helper {
     private static final String PATCH_PATH_KEY = "patch.path";
     private static final String DEPLOY_PATH_KEY = "deploy.path"; // relative to patch folder
 
-    private static final ImmutableMap<String,String> PROJECT_NAME_FROM_INFO_FILE_TO_DEPLOYED =
-        ImmutableMap.<String, String>builder()
+    private static final String MAPPING_PROJECT = "mapping.project.";
+    private static final HashMap<String,String> PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED =
+        Maps.newHashMap(ImmutableMap.<String, String>builder()
         .put("esb",         "esb")
         .put("magnolia",    "webapp")
         .put("hybris",      "todo")
-        .build();
-    private static final String SRC_MAIN = "/src/main/";
+        .build());
 
+    private static final String MAPPING_SRC = "mapping.src.";
+    private static final String SRC_MAIN = "/src/main/";
+    private static final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOYED =
+        Maps.newHashMap(ImmutableMap.<String, String>builder()
+            .put("java",         "WEB-INF/classes")
+            .put("resources",    "WEB-INF/classes")
+            .put("webapp/",      "")
+            .build());
+
+    // credentials
     private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
     private static final String AWS_SYSTEM_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
     private static final String AWS_PROPERTY_ACCESS_KEY = "aws.accessKeyId";
     private static final String AWS_PROPERTY_SECRET_ACCESS_KEY = "aws.secretKey";
 
     private static Properties customProperties = new Properties();
-    private static boolean isSingleProject = false;
 
 
     public static void loadCustomProperties(@NotNull Project project)
     {
-        AmazonS3Helper.customProperties = FileHelper.getProperties(
-            project.getBasePath()
-            + File.separator
-            + S3_PROPERTIES_FILE);
-    }
+        final String basePath = project.getBasePath();
+        AmazonS3Helper.customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
 
-    public static void setSingleProject(boolean isSingleProject)
-    {
-        AmazonS3Helper.isSingleProject = isSingleProject;
-    }
+        // search custom mappings from config file suffix to deployed project
+        AmazonS3Helper.customProperties.forEach((k,v) -> {
+            if (startsWith(k.toString(), MAPPING_PROJECT)) {
+                PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
+            }
+        });
 
+        // search custom mappings from source path to deploy path
+        AmazonS3Helper.customProperties.forEach((k,v) -> {
+            if (startsWith(k.toString(), MAPPING_SRC)) {
+                SRC_FROM_PROJECT_TO_DEPLOYED.put(k.toString().replace(MAPPING_SRC, EMPTY), v.toString());
+            }
+        });
+    }
 
     /**
      * Get list of files indicating
@@ -131,8 +151,8 @@ public class AmazonS3Helper {
         String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
 
         try {
-            String patchPath = getVersionsPath() + version + File.separator + getPatchPath();
-            String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadInfo, projectName);
+            String patchPath = getVersionsPath() + version + separator + getPatchPath();
+            String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadInfo);
             String deployPath = deployedProjectPath + getDeployPath(fileToUpload, originalFile);
 
             // upload file
@@ -159,19 +179,19 @@ public class AmazonS3Helper {
     @NotNull
     private static String getLastVersionsPath()
     {
-        return customProperties.getProperty(LAST_VERSIONS_PATH_KEY, LAST_VERSIONS_PATH) + File.separator;
+        return customProperties.getProperty(LAST_VERSIONS_PATH_KEY, LAST_VERSIONS_PATH) + separator;
     }
 
     @NotNull
     private static String getVersionsPath()
     {
-        return customProperties.getProperty(VERSIONS_PATH_KEY, VERSIONS_PATH) + File.separator;
+        return customProperties.getProperty(VERSIONS_PATH_KEY, VERSIONS_PATH) + separator;
     }
 
     @NotNull
     private static String getPatchPath()
     {
-        return customProperties.getProperty(PATCH_PATH_KEY, PATCH_PATH) + File.separator;
+        return customProperties.getProperty(PATCH_PATH_KEY, PATCH_PATH) + separator;
     }
 
     /**
@@ -180,27 +200,21 @@ public class AmazonS3Helper {
      * @param bucketName
      * @param patchPath
      * @param uploadInfo
-     * @param projectName
      * @return
      * @throws IllegalArgumentException
      */
     @NotNull
     private static String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
-        @NotNull String patchPath, @NotNull UploadInfo uploadInfo,
-        @NotNull String projectName) throws IllegalArgumentException
+        @NotNull String patchPath, @NotNull UploadInfo uploadInfo) throws IllegalArgumentException
     {
         String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
         if (deployedProjectName != null) {
             return patchPath + deployedProjectName
-                + (StringUtils.isNotEmpty(deployedProjectName) ? File.separator : StringUtils.EMPTY);
-        }
-
-        if (isSingleProject) {
-            return StringUtils.EMPTY;
+                + (isNotEmpty(deployedProjectName) ? separator : EMPTY);
         }
 
         // get "webapp" from "magnolia"
-        final String deployedProjectSuffix = PROJECT_NAME_FROM_INFO_FILE_TO_DEPLOYED.get(uploadInfo.getProjectName());
+        final String deployedProjectSuffix = PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.get(uploadInfo.getProjectName());
 
         // search in s3 a folder with calculated suffix
         ListObjectsV2Request request = new ListObjectsV2Request()
@@ -209,10 +223,23 @@ public class AmazonS3Helper {
 
         try {
             ListObjectsV2Result listing = s3Client.listObjectsV2(request);
-            Optional<String> matchingProject = listing.getObjectSummaries().stream()
-                .map(s -> StringUtils.substringBefore(s.getKey().replaceFirst(patchPath, ""), "/"))
+            List<String> projectsList = listing.getObjectSummaries().stream()
+                .map(s -> substringBefore(s.getKey().replaceFirst(patchPath, ""), "/"))
                 .distinct()
-                .filter(s -> !s.isEmpty() && StringUtils.equals(StringUtils.substringAfterLast(s, "-"), deployedProjectSuffix))
+                .collect(Collectors.toList());
+
+            if (projectsList.isEmpty()) {
+                throw new IllegalArgumentException("No project found in path " + bucketName + separator + patchPath);
+            }
+
+            // skip folder if only one project
+            if (projectsList.size() == 1) {
+                return EMPTY;
+            }
+
+            Optional<String> matchingProject = projectsList.stream()
+                .filter(s -> !s.isEmpty()
+                    && StringUtils.equals(substringAfterLast(s, "-"), deployedProjectSuffix))
                 .findFirst();
 
             if (matchingProject.isPresent()) {
@@ -223,12 +250,12 @@ public class AmazonS3Helper {
             NotificationGuiHelper.showEvent("Error " + ex.getMessage(), ERROR);
         }
 
-        if (StringUtils.isEmpty(deployedProjectName)) {
-            throw new IllegalArgumentException("Could not get map " + uploadInfo.getProjectName()
-                + " to daployed project, tried suffix: " + deployedProjectSuffix);
+        if (isEmpty(deployedProjectName)) {
+            throw new IllegalArgumentException("Could not map suffix " + deployedProjectSuffix
+                + " to a deployed project in path: " + bucketName + separator + patchPath);
         }
 
-        return patchPath + deployedProjectName + File.separator;
+        return patchPath + deployedProjectName + separator;
     }
 
 
@@ -248,22 +275,18 @@ public class AmazonS3Helper {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        String relativePath = StringUtils.substringAfter(originalPath, SRC_MAIN);
+        final String pathInSrcMain = substringAfter(originalPath, SRC_MAIN);
 
-        if (relativePath.startsWith("java")) {
-            relativePath = relativePath.replaceFirst("java", "WEB-INF/classes");
+        Optional<Map.Entry<String, String>> mapping = SRC_FROM_PROJECT_TO_DEPLOYED.entrySet().stream()
+            .filter(e -> pathInSrcMain.startsWith(e.getKey()))
+            .findFirst();
 
-        } else if (relativePath.startsWith("resources")) {
-            relativePath = relativePath.replaceFirst("resources", "WEB-INF/classes");
-
-        } else if (relativePath.startsWith("webapp")) {
-            relativePath = relativePath.replaceFirst("webapp/", "");
-
-        } else {
+        if (!mapping.isPresent()) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        return relativePath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
+        String convertedPath = pathInSrcMain.replaceFirst(mapping.get().getKey(), mapping.get().getValue());
+        return convertedPath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
     }
 
 
@@ -274,7 +297,7 @@ public class AmazonS3Helper {
         String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
         String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
 
-        if (StringUtils.isEmpty(System.getenv(key)) || StringUtils.isEmpty(System.getenv(secret))) {
+        if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
 
             throw new IllegalArgumentException("System Variables " + key + " and " + secret + " not found");
         }
