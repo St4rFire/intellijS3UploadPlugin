@@ -26,10 +26,12 @@ import com.openmind.intellij.helper.NotificationGuiHelper;
 public class UploadFileToS3Action extends AnAction {
 
     private UploadInfo uploadInfo;
+    private AmazonS3Helper amazonS3Helper;
 
-    public UploadFileToS3Action(@Nullable UploadInfo uploadInfo){
+    public UploadFileToS3Action(@Nullable UploadInfo uploadInfo, @Nullable AmazonS3Helper amazonS3Helper){
         super(uploadInfo.getFileName(), null, null);
         this.uploadInfo = uploadInfo;
+        this.amazonS3Helper = amazonS3Helper;
     }
 
     /**
@@ -48,7 +50,7 @@ public class UploadFileToS3Action extends AnAction {
         }
 
         // upload to S3
-        AmazonS3Helper.uploadFile(project, fileToUpload, originalFile, uploadInfo);
+        amazonS3Helper.uploadFile(project, fileToUpload, originalFile, uploadInfo);
     }
 
     @Override

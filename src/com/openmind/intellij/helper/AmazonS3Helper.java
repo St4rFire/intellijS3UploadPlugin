@@ -60,7 +60,7 @@ public class AmazonS3Helper {
 
     // project recognition
     private static final String MAPPING_PROJECT = "mapping.project.";
-    private static final HashMap<String,String> PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED =
+    private final HashMap<String,String> PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
         .put("esb",         "esb")
         .put("magnolia",    "webapp")
@@ -70,7 +70,7 @@ public class AmazonS3Helper {
     // src deploy path transformation
     private static final String MAPPING_SRC = "mapping.src.";
     private static final String SRC_MAIN = "/src/main/";
-    private static final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOYED =
+    private final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOYED =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
             .put("java",         "WEB-INF/classes")
             .put("resources",    "WEB-INF/classes")
@@ -78,28 +78,47 @@ public class AmazonS3Helper {
             .build());
 
 
-    private static Properties customProperties = new Properties();
+    private Properties customProperties;
 
 
-    public static void loadCustomProperties(@NotNull Project project)
+    public AmazonS3Helper(@NotNull Project project) throws IllegalArgumentException
+    {
+        checkSystemVars(project);
+        loadCustomProperties(project);
+    }
+
+    private void checkSystemVars(@NotNull Project project) throws IllegalArgumentException
+    {
+        String projectPrefix = getProjectName(project).toUpperCase() + "_";
+        String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
+        String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
+
+        if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
+
+            throw new IllegalArgumentException("System Variables " + key + " and " + secret + " not found");
+        }
+    }
+
+    private void loadCustomProperties(@NotNull Project project)
     {
         final String basePath = project.getBasePath();
-        AmazonS3Helper.customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
+        customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
 
         // search custom mappings from config file suffix to deployed project
-        AmazonS3Helper.customProperties.forEach((k,v) -> {
+        customProperties.forEach((k,v) -> {
             if (startsWith(k.toString(), MAPPING_PROJECT)) {
                 PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
             }
         });
 
         // search custom mappings from source path to deploy path
-        AmazonS3Helper.customProperties.forEach((k,v) -> {
+        customProperties.forEach((k,v) -> {
             if (startsWith(k.toString(), MAPPING_SRC)) {
                 SRC_FROM_PROJECT_TO_DEPLOYED.put(k.toString().replace(MAPPING_SRC, EMPTY), v.toString());
             }
         });
     }
+
 
     /**
      * Get list of files indicating
@@ -107,7 +126,7 @@ public class AmazonS3Helper {
      * @return
      */
     @NotNull
-    public static List<String> getVersionFiles(@NotNull Project project) {
+    public List<String> getVersionFiles(@NotNull Project project) {
         final String projectName = getProjectName(project);
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
@@ -132,7 +151,6 @@ public class AmazonS3Helper {
     }
 
 
-
     /**
      * Upload to S3
      * @param project
@@ -140,7 +158,7 @@ public class AmazonS3Helper {
      * @param originalFile
      * @param uploadInfo
      */
-    public static void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
+    public void uploadFile(@NotNull Project project, @NotNull VirtualFile fileToUpload,
         @NotNull VirtualFile originalFile, @NotNull UploadInfo uploadInfo) {
 
         final String projectName = getProjectName(project);
@@ -170,31 +188,31 @@ public class AmazonS3Helper {
     }
 
     @NotNull
-    private static String getProjectName(@NotNull Project project)
+    private String getProjectName(@NotNull Project project)
     {
         return customProperties.getProperty(PROJECT_NAME, project.getName());
     }
 
     @NotNull
-    private static String getBucketName(@NotNull String projectName)
+    private String getBucketName(@NotNull String projectName)
     {
         return customProperties.getProperty(S3_BUCKET_KEY, projectName + S3_BUCKET_SUFFIX);
     }
 
     @NotNull
-    private static String getLastVersionsPath()
+    private String getLastVersionsPath()
     {
         return customProperties.getProperty(LAST_VERSIONS_PATH_KEY, LAST_VERSIONS_PATH) + separator;
     }
 
     @NotNull
-    private static String getVersionsPath()
+    private String getVersionsPath()
     {
         return customProperties.getProperty(VERSIONS_PATH_KEY, VERSIONS_PATH) + separator;
     }
 
     @NotNull
-    private static String getPatchPath()
+    private String getPatchPath()
     {
         return customProperties.getProperty(PATCH_PATH_KEY, PATCH_PATH) + separator;
     }
@@ -209,7 +227,7 @@ public class AmazonS3Helper {
      * @throws IllegalArgumentException
      */
     @NotNull
-    private static String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
+    private String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
         @NotNull String patchPath, @NotNull UploadInfo uploadInfo) throws IllegalArgumentException
     {
         String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
@@ -272,7 +290,7 @@ public class AmazonS3Helper {
      * @return
      */
     @NotNull
-    public static String getDeployPath(@NotNull VirtualFile fileToUpload, @NotNull VirtualFile originalFile)
+    public String getDeployPath(@NotNull VirtualFile fileToUpload, @NotNull VirtualFile originalFile)
         throws IllegalArgumentException
     {
         String originalPath = originalFile.getCanonicalPath();
@@ -296,19 +314,9 @@ public class AmazonS3Helper {
 
 
 
-    public static void checkSystemVars(@NotNull Project project) throws IllegalArgumentException
-    {
-        String projectPrefix = getProjectName(project).toUpperCase() + "_";
-        String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
-        String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
 
-        if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
 
-            throw new IllegalArgumentException("System Variables " + key + " and " + secret + " not found");
-        }
-    }
-
-    private static AmazonS3 getS3Client(@NotNull Project project)
+    private AmazonS3 getS3Client(@NotNull Project project)
     {
         setSystemPropertiesFromEnvs(project);
         final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
@@ -322,7 +330,7 @@ public class AmazonS3Helper {
      * Update system properties before any call based on current project
      * @param project
      */
-    private static void setSystemPropertiesFromEnvs(@NotNull Project project)
+    private void setSystemPropertiesFromEnvs(@NotNull Project project)
     {
         String projectPrefix = getProjectName(project).toUpperCase() + "_";
         String awsAccessKey = System.getenv(projectPrefix + AWS_SYSTEM_ACCESS_KEY);

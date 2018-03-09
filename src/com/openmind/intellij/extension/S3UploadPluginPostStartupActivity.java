@@ -31,11 +31,10 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             return;
         }
 
-        AmazonS3Helper.loadCustomProperties(project);
-
+        AmazonS3Helper amazonS3Helper;
         try
         {
-            AmazonS3Helper.checkSystemVars(project);
+            amazonS3Helper = new AmazonS3Helper(project);
         }
         catch (IllegalArgumentException e)
         {
@@ -44,12 +43,12 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
         }
 
         // add actions
-        List<UploadInfo> uploadInfos = AmazonS3Helper.getVersionFiles(project).stream()
+        List<UploadInfo> uploadInfos = amazonS3Helper.getVersionFiles(project).stream()
             .map(v -> new UploadInfo(v))
             .collect(Collectors.toList());
 
         for(UploadInfo uploadInfo : uploadInfos) {
-            AnAction action = new UploadFileToS3Action(uploadInfo);
+            AnAction action = new UploadFileToS3Action(uploadInfo, amazonS3Helper);
             am.registerAction("S3UploadPlugin.UploadAction" + uploadInfo.getFileName(), action);
             group.add(action);
         }
