@@ -19,33 +19,36 @@ import com.intellij.psi.PsiJavaFile;
 public class FileHelper
 {
 
-    @Nullable
-    public static VirtualFile getCompiledFile(@NotNull PsiJavaFile psiJavaFile)
-    {
+    @NotNull
+    public static String getPathToUpload(String filePath) {
 
-        final VirtualFile virtualFile = psiJavaFile.getVirtualFile();
-        final String classFilePath = virtualFile.getCanonicalPath()
-            .replace("/src/main/java", "/target/classes")
-            .replace(".java", ".class");
-
-        // get .class file
-        final VirtualFile compiledFile = virtualFile.getFileSystem().findFileByPath(classFilePath);
-        if (compiledFile != null && compiledFile.exists())
-        {
-            return compiledFile;
+        // get compiled files
+        if (filePath.endsWith(".java")) {
+            final String classFile = (filePath
+                    .replace("/src/main/java", "/target/classes")
+                    .replace(".java", ".class"));
+            if (new File(classFile).exists()) {
+                return classFile;
+            }
+            throw new IllegalArgumentException(".class not found for " + filePath);
         }
-        return null;
+
+        return filePath;
+    }
+
+    public static String getFileExtension(String filePath) {
+        return filePath.substring(filePath.lastIndexOf(".") + 1);
     }
 
 
 
 
-    /**
-     * Read text from file
-     *
-     * @param input
-     * @return
-     */
+        /**
+         * Read text from file
+         *
+         * @param input
+         * @return
+         */
     @NotNull
     public static String getFirstLineFromFile(InputStream input) throws IllegalArgumentException
     {

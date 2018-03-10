@@ -14,8 +14,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.openmind.intellij.action.ScrollToClassFileAction;
 import com.openmind.intellij.action.UploadFileToS3Action;
-import com.openmind.intellij.bean.UploadInfo;
-import com.openmind.intellij.helper.AmazonS3Helper;
+import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.service.AmazonS3Service;
 import com.openmind.intellij.helper.NotificationGuiHelper;
 
 
@@ -31,25 +31,19 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             return;
         }
 
-        AmazonS3Helper amazonS3Helper;
-        try
-        {
-            amazonS3Helper = new AmazonS3Helper(project);
-        }
-        catch (IllegalArgumentException e)
-        {
+        AmazonS3Service amazonS3Service;
+        try {
+            amazonS3Service = new AmazonS3Service(project);
+
+        } catch (IllegalArgumentException e) {
             NotificationGuiHelper.showEvent("S3UploadPlugin disabled: " + e.getMessage(), INFORMATION);
             return;
         }
 
         // add actions
-        List<UploadInfo> uploadInfos = amazonS3Helper.getVersionFiles().stream()
-            .map(v -> new UploadInfo(v))
-            .collect(Collectors.toList());
-
-        for (UploadInfo uploadInfo : uploadInfos) {
-            AnAction action = new UploadFileToS3Action(uploadInfo, amazonS3Helper);
-            am.registerAction("S3UploadPlugin.UploadAction" + uploadInfo.getFileName(), action);
+        for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs()) {
+            AnAction action = new UploadFileToS3Action(uploadConfig, amazonS3Service);
+            am.registerAction("S3UploadPlugin.UploadAction" + uploadConfig.getFileName(), action);
             group.add(action);
         }
 

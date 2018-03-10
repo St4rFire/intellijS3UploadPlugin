@@ -14,10 +14,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
-import com.openmind.intellij.bean.UploadInfo;
-import com.openmind.intellij.helper.AmazonS3Helper;
-import com.openmind.intellij.helper.FileHelper;
-import com.openmind.intellij.helper.NotificationGuiHelper;
+import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.service.AmazonS3Service;
 
 
 /**
@@ -25,13 +23,13 @@ import com.openmind.intellij.helper.NotificationGuiHelper;
  */
 public class UploadFileToS3Action extends AnAction {
 
-    private UploadInfo uploadInfo;
-    private AmazonS3Helper amazonS3Helper;
+    private UploadConfig uploadConfig;
+    private AmazonS3Service amazonS3Service;
 
-    public UploadFileToS3Action(@Nullable UploadInfo uploadInfo, @Nullable AmazonS3Helper amazonS3Helper){
-        super(uploadInfo.getFileName(), null, null);
-        this.uploadInfo = uploadInfo;
-        this.amazonS3Helper = amazonS3Helper;
+    public UploadFileToS3Action(@Nullable UploadConfig uploadConfig, @Nullable AmazonS3Service amazonS3Service){
+        super(uploadConfig.getFileName(), null, null);
+        this.uploadConfig = uploadConfig;
+        this.amazonS3Service = amazonS3Service;
     }
 
     /**
@@ -39,46 +37,17 @@ public class UploadFileToS3Action extends AnAction {
      * @param anActionEvent
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
-        final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
         final PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
         final VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
-        final VirtualFile fileToUpload = getFileToUpload(psiFile, originalFile);
-
-        if (fileToUpload == null) {
-            NotificationGuiHelper.showEventAndBaloon("File to upload not found", ERROR);
-            return;
-        }
 
         // upload to S3
-        amazonS3Helper.uploadFile(fileToUpload, originalFile, uploadInfo);
+        amazonS3Service.uploadFile(originalFile.getCanonicalPath(), uploadConfig);
     }
 
     @Override
     public void update(AnActionEvent anActionEvent) {
-        final Project project = anActionEvent.getData(CommonDataKeys.PROJECT);
-        if (project == null)
-            return;
-
         VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
         anActionEvent.getPresentation().setEnabledAndVisible(!originalFile.isDirectory());
-    }
-
-
-    /**
-     * Get file to upload
-     * @param psiFile
-     * @param virtualFile
-     * @return virtualFile
-     */
-    @Nullable
-    private VirtualFile getFileToUpload(@NotNull PsiFile psiFile, @NotNull VirtualFile virtualFile) {
-
-        // get compiled files
-        if (psiFile instanceof PsiJavaFile) {
-            return FileHelper.getCompiledFile((PsiJavaFile) psiFile);
-        }
-
-        return virtualFile;
     }
 
 }

@@ -12,7 +12,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
-import com.openmind.intellij.helper.AmazonS3Helper;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationGuiHelper;
 import com.openmind.intellij.helper.ScrollFromFileHelper;
