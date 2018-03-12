@@ -1,25 +1,20 @@
 package com.openmind.intellij.action;
 
-import static com.intellij.notification.NotificationType.*;
 import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiJavaFile;
 import com.openmind.intellij.bean.UploadConfig;
 import com.openmind.intellij.service.AmazonS3Service;
 
 
 /**
- * Upload File to s3
+ * Upload a file to s3
  */
 public class UploadFileToS3Action extends AnAction {
 
@@ -33,17 +28,21 @@ public class UploadFileToS3Action extends AnAction {
     }
 
     /**
-     * Start upload
+     * Menu click callback
      * @param anActionEvent
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
-        final PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
-        final VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
+        final PsiFile selectedFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
+        //final VirtualFile selectedFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
 
         // upload to S3
-        amazonS3Service.uploadFile(originalFile.getCanonicalPath(), uploadConfig);
+        amazonS3Service.uploadFile(selectedFile, uploadConfig);
     }
 
+    /**
+     * Handle action visibility
+     * @param anActionEvent
+     */
     @Override
     public void update(AnActionEvent anActionEvent) {
         VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());

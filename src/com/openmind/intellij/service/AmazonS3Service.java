@@ -12,8 +12,10 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import com.openmind.intellij.helper.FileHelper;
-import com.openmind.intellij.helper.NotificationGuiHelper;
+import com.openmind.intellij.helper.NotificationHelper;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,14 +31,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.bean.UploadConfig;
 
 
 /**
  * Upload file to S3. S3 env credentials have to be set
  */
-public class AmazonS3Service {
+public class AmazonS3Service
+{
 
     // credentials
     private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
@@ -84,7 +86,11 @@ public class AmazonS3Service {
     private List<UploadConfig> uploadConfigs;
 
 
-
+    /**
+     * Load project configs
+     * @param project
+     * @throws IllegalArgumentException
+     */
     public AmazonS3Service(@NotNull Project project) throws IllegalArgumentException {
         this.project = project;
         loadCustomProperties();
@@ -92,8 +98,19 @@ public class AmazonS3Service {
         loadUploadConfigs();
     }
 
+    /**
+     * Get all available configs
+     * @return
+     */
+    @NotNull
+    public List<UploadConfig> getUploadConfigs() {
+        return this.uploadConfigs;
+    }
 
 
+    /**
+     * Add custom properties to defaults
+     */
     private void loadCustomProperties() {
         final String basePath = project.getBasePath();
         customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
@@ -113,6 +130,10 @@ public class AmazonS3Service {
         });
     }
 
+    /**
+     * Check if system envs are set
+     * @throws IllegalArgumentException
+     */
     private void checkSystemVars() throws IllegalArgumentException {
         String projectPrefix = getProjectName().toUpperCase() + "_";
         String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
@@ -125,11 +146,10 @@ public class AmazonS3Service {
     }
 
     /**
-     * Load upload options from s3
-     * @return
+     * Load configs from s3
      */
     @NotNull
-    public void loadUploadConfigs() {
+    private void loadUploadConfigs() {
         final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
@@ -150,49 +170,57 @@ public class AmazonS3Service {
             return;
 
         } catch (Exception ex) {
-            NotificationGuiHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
+            NotificationHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
         }
         this.uploadConfigs = Lists.newArrayList();
     }
 
 
-    @NotNull
-    public List<UploadConfig> getUploadConfigs() {
-        return this.uploadConfigs;
-    }
-
-
     /**
      * Upload to S3
-     * @param originalPath
+     * @param originalFile
      * @param uploadConfig
      */
-    public void uploadFile(@NotNull String originalPath, @NotNull UploadConfig uploadConfig) {
+    public void uploadFile(@NotNull PsiFile originalFile, @NotNull UploadConfig uploadConfig) {
+
+        // get file to really upload
+        final VirtualFile fileToUpload = FileHelper.getFileToUpload(originalFile);
+        if (fileToUpload == null) {
+            NotificationHelper.showEventAndBaloon("File to upload not found", ERROR);
+            return;
+        }
 
         final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
 
-        // connect to S3
+        // get current project version from S3
         final AmazonS3 s3Client = getS3Client();
+        final String versionFilePath = lastVersionsPath + uploadConfig.getFullFileName();
+        final S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
+        if (versionS3object == null || versionS3object.getObjectContent() == null) {
+            NotificationHelper.showEventAndBaloon("Version file not found", ERROR);
+            return;
+        }
 
-        // get current project version
-        String versionFilePath = lastVersionsPath + uploadConfig.getFullFileName();
-        S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
-        String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
+        final String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
+        if (StringUtils.isEmpty(version)) {
+            NotificationHelper.showEventAndBaloon("Version file is empty", ERROR);
+            return;
+        }
 
+        // deploy file
         try {
-            final String pathToUpload = FileHelper.getPathToUpload(originalPath);
             final String patchPath = getVersionsPath() + version + separator + getPatchPath();
             final String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadConfig);
-            final String deployPath = deployedProjectPath + getDeployPath(originalPath, pathToUpload);
+            final String deployPath = deployedProjectPath + getDeployPath(originalFile.getVirtualFile(), fileToUpload);
 
             // upload file
-            s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(pathToUpload)));
-            NotificationGuiHelper.showEventAndBaloon("Uploaded to " + deployPath, INFORMATION);
+            s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
+            NotificationHelper.showEventAndBaloon("Uploaded to " + deployPath, INFORMATION);
 
         } catch (Exception ex) {
-            NotificationGuiHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
+            NotificationHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
         }
     }
 
@@ -224,7 +252,7 @@ public class AmazonS3Service {
 
 
     /**
-     * Path inside patch folder
+     * Get full path of project inside the patch folder
      * @param s3Client
      * @param bucketName
      * @param patchPath
@@ -236,6 +264,7 @@ public class AmazonS3Service {
     private String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
         @NotNull String patchPath, @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
 
+        // custom deploy path
         String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
         if (deployedProjectName != null) {
             return patchPath + deployedProjectName
@@ -245,12 +274,12 @@ public class AmazonS3Service {
         // get "webapp" from "magnolia"
         final String deployedProjectSuffix = PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.get(uploadConfig.getProjectName());
 
-        // search in s3 a folder with calculated suffix
-        ListObjectsV2Request request = new ListObjectsV2Request()
-            .withBucketName(bucketName)
-            .withPrefix(patchPath);
-
         try {
+            // get list of deployed projects
+            ListObjectsV2Request request = new ListObjectsV2Request()
+                .withBucketName(bucketName)
+                .withPrefix(patchPath);
+
             ListObjectsV2Result listing = s3Client.listObjectsV2(request);
             List<String> projectsList = listing.getObjectSummaries().stream()
                 .map(s -> substringBefore(s.getKey().replaceFirst(patchPath, ""), "/"))
@@ -266,6 +295,7 @@ public class AmazonS3Service {
                 return EMPTY;
             }
 
+            // search in s3 a folder with the selected suffix
             Optional<String> matchingProject = projectsList.stream()
                 .filter(s -> !s.isEmpty()
                     && StringUtils.equals(substringAfterLast(s, "-"), deployedProjectSuffix))
@@ -276,7 +306,7 @@ public class AmazonS3Service {
             }
 
         } catch (Exception ex) {
-            NotificationGuiHelper.showEvent("Error " + ex.getMessage(), ERROR);
+            NotificationHelper.showEvent("Error " + ex.getMessage(), ERROR);
         }
 
         if (isEmpty(deployedProjectName)) {
@@ -291,19 +321,21 @@ public class AmazonS3Service {
     /**
      * Convert original path to path to upload
      *
-     * @param originalPath
+     * @param originalFile
      * @param fileToUpload
      * @return
      */
     @NotNull
-    public String getDeployPath(@NotNull String originalPath, @NotNull String pathToUpload)
+    public String getDeployPath(@NotNull VirtualFile originalFile, @NotNull VirtualFile fileToUpload)
         throws IllegalArgumentException {
 
+        String originalPath = originalFile.getCanonicalPath();
         if (originalPath == null || !originalPath.contains(SRC_MAIN)) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        final String pathInSrcMain = originalPath.substring(originalPath.lastIndexOf(SRC_MAIN) + SRC_MAIN.length()+ 1);
+        final String pathInSrcMain = substringAfter(originalPath, SRC_MAIN);
+
         Optional<Map.Entry<String, String>> mapping = SRC_FROM_PROJECT_TO_DEPLOYED.entrySet().stream()
             .filter(e -> pathInSrcMain.startsWith(e.getKey()))
             .findFirst();
@@ -313,7 +345,7 @@ public class AmazonS3Service {
         }
 
         String convertedPath = pathInSrcMain.replaceFirst(mapping.get().getKey(), mapping.get().getValue());
-        return convertedPath.replace("." + FileHelper.getFileExtension(originalPath), "." + FileHelper.getFileExtension(pathToUpload));
+        return convertedPath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
     }
 
     private AmazonS3 getS3Client() {

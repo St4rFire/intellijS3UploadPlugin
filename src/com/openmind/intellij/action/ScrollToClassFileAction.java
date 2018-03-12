@@ -13,8 +13,8 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
 import com.openmind.intellij.helper.FileHelper;
-import com.openmind.intellij.helper.NotificationGuiHelper;
-import com.openmind.intellij.helper.ScrollFromFileHelper;
+import com.openmind.intellij.helper.NotificationHelper;
+import com.openmind.intellij.helper.ScrollToFile;
 
 
 /**
@@ -36,19 +36,23 @@ public class ScrollToClassFileAction extends AnAction {
         PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
 
         // get compiled class
-        VirtualFile compiledFile = FileHelper.getCompiledFile((PsiJavaFile) psiFile);
+        VirtualFile compiledFile = FileHelper.getCompiledFile(psiFile);
 
         // scroll to file in navigator if found
         if(compiledFile != null) {
             PsiFile fileManaged = PsiManager.getInstance(project).findFile(compiledFile);
-            ScrollFromFileHelper.scrollFromFile(project, fileManaged);
+            ScrollToFile.scroll(project, fileManaged);
 
         } else {
-            NotificationGuiHelper.showEvent(".class file not found!", NotificationType.ERROR);
+            NotificationHelper.showEvent(".class file not found!", NotificationType.ERROR);
         }
     }
 
 
+    /**
+     * Handle action visibility
+     * @param anActionEvent
+     */
     @Override
     public void update(AnActionEvent anActionEvent) {
         final Project project = anActionEvent.getData(CommonDataKeys.PROJECT);

@@ -8,76 +8,93 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Properties;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 
 
-public class FileHelper
-{
+public class FileHelper {
 
-    @NotNull
-    public static String getPathToUpload(String filePath) {
+    /**
+     * Get compile file
+     * @param psiFile
+     * @return null if not found
+     */
+    @Nullable
+    public static VirtualFile getCompiledFile(@NotNull PsiFile psiFile) {
+        final VirtualFile virtualFile = psiFile.getVirtualFile();
+        String compiledFilePath = null;
 
-        // get compiled files
-        if (filePath.endsWith(".java")) {
-            final String classFile = (filePath
-                    .replace("/src/main/java", "/target/classes")
-                    .replace(".java", ".class"));
-            if (new File(classFile).exists()) {
-                return classFile;
-            }
-            throw new IllegalArgumentException(".class not found for " + filePath);
+        if (psiFile instanceof PsiJavaFile) {
+            compiledFilePath = virtualFile.getCanonicalPath()
+                .replace("/src/main/java", "/target/classes")
+                .replace(".java", ".class");
         }
 
-        return filePath;
+        if(StringUtils.isNotEmpty(compiledFilePath)) {
+
+            final VirtualFile compiledFile = virtualFile.getFileSystem().findFileByPath(compiledFilePath);
+            if (compiledFile != null && compiledFile.exists()) {
+                return compiledFile;
+            }
+        }
+
+        return null;
     }
 
-    public static String getFileExtension(String filePath) {
-        return filePath.substring(filePath.lastIndexOf(".") + 1);
+    /**
+     * Get file to upload
+     * @param psiFile
+     * @return virtualFile
+     */
+    @Nullable
+    public static VirtualFile getFileToUpload(@NotNull PsiFile psiFile) {
+
+        // get compiled files
+        if (psiFile instanceof PsiJavaFile) {
+            return FileHelper.getCompiledFile(psiFile);
+        }
+
+        return psiFile.getVirtualFile();
     }
 
-
-
-
-        /**
-         * Read text from file
-         *
-         * @param input
-         * @return
-         */
+    /**
+     * Read text from file
+     *
+     * @param input
+     * @return
+     */
     @NotNull
-    public static String getFirstLineFromFile(InputStream input) throws IllegalArgumentException
-    {
-
-        try
-        {
+    public static String getFirstLineFromFile(@NotNull InputStream input) throws IllegalArgumentException {
+        try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(input));
             return reader.readLine();
 
-        }
-        catch (IOException e)
-        {
+        } catch (IOException e) {
             throw new IllegalArgumentException("Could not get project version", e);
         }
     }
 
+
+    /**
+     * Load file as Properties
+     * @param filePath
+     * @return
+     */
     @NotNull
-    public static Properties getProperties(@NotNull String filePath)
-    {
+    public static Properties getProperties(@NotNull String filePath) {
         Properties prop = new Properties();
         File file = new File(filePath);
-        if (file.exists())
-        {
-            try
-            {
+        if (file.exists()) {
+            try {
                 prop.load(new FileInputStream(file));
-            }
-            catch (IOException e)
-            {
+
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }

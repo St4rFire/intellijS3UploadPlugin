@@ -12,9 +12,10 @@ import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 
 
-public class ScrollFromFileHelper {
+public class ScrollToFile
+{
 
-    public static void scrollFromFile(@NotNull Project project, @NotNull PsiFile file) {
+    public static void scroll(@NotNull Project project, @NotNull PsiFile file) {
         final SelectInContext selectInContext = new FileSelectInContext(project, file.getVirtualFile());
 
         ProjectViewImpl projectView = (ProjectViewImpl) ProjectView.getInstance(project);

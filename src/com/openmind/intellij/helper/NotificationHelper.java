@@ -10,19 +10,39 @@ import com.intellij.notification.Notifications;
 import com.intellij.util.AlarmFactory;
 
 
-public class NotificationGuiHelper {
+/**
+ * Handle notifications in editor
+ */
+public class NotificationHelper
+{
 
     private static final String GROUP_DISPLAY_ID = "S3UploadPlugin balloon notifications";
     private static final String NOTIFICATION_TITLE = "S3UploadPlugin";
 
+    /**
+     * Show message in event log and baloon
+     * @param html
+     * @param notificationType
+     */
     public static void showEventAndBaloon(@NotNull String html, @NotNull NotificationType notificationType) {
         show(html, notificationType, false);
     }
 
+    /**
+     * Show message in event log
+     * @param html
+     * @param notificationType
+     */
     public static void showEvent(@NotNull String html, @NotNull NotificationType notificationType) {
         show(html, notificationType, true);
     }
 
+    /**
+     * Show message in event log and baloon (optional)
+     * @param html
+     * @param notificationType
+     * @param hideBaloon
+     */
     private static void show(@NotNull String html, @NotNull NotificationType notificationType, boolean hideBaloon) {
 
         Notification notification = new Notification(GROUP_DISPLAY_ID, NOTIFICATION_TITLE, html, notificationType);
