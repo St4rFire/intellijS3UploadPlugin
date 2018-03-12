@@ -48,7 +48,7 @@ public class NotificationHelper
         Notification notification = new Notification(GROUP_DISPLAY_ID, NOTIFICATION_TITLE, html, notificationType);
         Notifications.Bus.notify(notification);
 
-        if (hideBaloon) {
+        if (hideBaloon && notification.getBalloon() != null) {
             notification.getBalloon().hide();
         }
 

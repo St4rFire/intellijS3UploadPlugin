@@ -2,8 +2,11 @@ package com.openmind.intellij.action;
 
 import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.intellij.openapi.Disposable;
+import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
@@ -16,13 +19,15 @@ import com.openmind.intellij.service.AmazonS3Service;
 /**
  * Upload a file to s3
  */
-public class UploadFileToS3Action extends AnAction {
+public class UploadFileToS3Action extends AnAction implements Disposable {
 
+    private final String actionId;
     private UploadConfig uploadConfig;
     private AmazonS3Service amazonS3Service;
 
     public UploadFileToS3Action(@Nullable UploadConfig uploadConfig, @Nullable AmazonS3Service amazonS3Service){
         super(uploadConfig.getFileName(), null, null);
+        this.actionId = "S3UploadPlugin.UploadAction" + uploadConfig.getFileName();
         this.uploadConfig = uploadConfig;
         this.amazonS3Service = amazonS3Service;
     }
@@ -49,4 +54,17 @@ public class UploadFileToS3Action extends AnAction {
         anActionEvent.getPresentation().setEnabledAndVisible(!originalFile.isDirectory());
     }
 
+    @NotNull
+    public String getActionId()
+    {
+        return actionId;
+    }
+
+    @Override
+    public void dispose()
+    {
+        ActionManager.getInstance().unregisterAction(actionId);
+        uploadConfig = null;
+        amazonS3Service = null;
+    }
 }

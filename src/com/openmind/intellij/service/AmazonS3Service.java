@@ -63,7 +63,7 @@ public class AmazonS3Service
 
     // project recognition
     private static final String MAPPING_PROJECT = "mapping.project.";
-    private final HashMap<String,String> PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED =
+    private final HashMap<String,String> PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
         .put("esb",         "esb")
         .put("magnolia",    "webapp")
@@ -73,7 +73,7 @@ public class AmazonS3Service
     // src deploy path transformation
     private static final String MAPPING_SRC = "mapping.src.";
     private static final String SRC_MAIN = "/src/main/";
-    private final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOYED =
+    private final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOY =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
             .put("java",         "WEB-INF/classes")
             .put("resources",    "WEB-INF/classes")
@@ -118,14 +118,14 @@ public class AmazonS3Service
         // search custom mappings from config file suffix to deployed project
         customProperties.forEach((k,v) -> {
             if (startsWith(k.toString(), MAPPING_PROJECT)) {
-                PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
+                PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
             }
         });
 
         // search custom mappings from source path to deploy path
         customProperties.forEach((k,v) -> {
             if (startsWith(k.toString(), MAPPING_SRC)) {
-                SRC_FROM_PROJECT_TO_DEPLOYED.put(k.toString().replace(MAPPING_SRC, EMPTY), v.toString());
+                SRC_FROM_PROJECT_TO_DEPLOY.put(k.toString().replace(MAPPING_SRC, EMPTY), v.toString());
             }
         });
     }
@@ -141,7 +141,7 @@ public class AmazonS3Service
 
         if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
 
-            throw new IllegalArgumentException("System Variables " + key + " and " + secret + " not found");
+            throw new IllegalArgumentException("System Variables " + key + " or " + secret + " not found");
         }
     }
 
@@ -225,7 +225,7 @@ public class AmazonS3Service
     }
 
     @NotNull
-    private String getProjectName() {
+    public String getProjectName() {
         return customProperties.getProperty(PROJECT_NAME, project.getName());
     }
 
@@ -272,7 +272,7 @@ public class AmazonS3Service
         }
 
         // get "webapp" from "magnolia"
-        final String deployedProjectSuffix = PROJECT_NAME_FROM_CONFIG_TO_DEPLOYED.get(uploadConfig.getProjectName());
+        final String deployedProjectSuffix = PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY.get(uploadConfig.getProjectName());
 
         try {
             // get list of deployed projects
@@ -336,7 +336,7 @@ public class AmazonS3Service
 
         final String pathInSrcMain = substringAfter(originalPath, SRC_MAIN);
 
-        Optional<Map.Entry<String, String>> mapping = SRC_FROM_PROJECT_TO_DEPLOYED.entrySet().stream()
+        Optional<Map.Entry<String, String>> mapping = SRC_FROM_PROJECT_TO_DEPLOY.entrySet().stream()
             .filter(e -> pathInSrcMain.startsWith(e.getKey()))
             .findFirst();
 

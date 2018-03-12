@@ -17,7 +17,7 @@ import com.openmind.intellij.helper.NotificationHelper;
 
 
 /**
- * Startup
+ * Setup on editor startup
  */
 public class S3UploadPluginPostStartupActivity implements StartupActivity {
 
@@ -36,22 +36,22 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             amazonS3Service = new AmazonS3Service(project);
 
         } catch (IllegalArgumentException e) {
-            NotificationHelper.showEvent("S3UploadPlugin disabled: " + e.getMessage(), INFORMATION);
+            NotificationHelper.showEvent("disabled! " + e.getMessage(), INFORMATION);
             return;
         }
 
         // add actions dynamically
         for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs()) {
-            AnAction action = new UploadFileToS3Action(uploadConfig, amazonS3Service);
-            am.registerAction("S3UploadPlugin.UploadAction" + uploadConfig.getFileName(), action);
+            UploadFileToS3Action action = new UploadFileToS3Action(uploadConfig, amazonS3Service);
+            am.registerAction(action.getActionId(), action);
             group.add(action);
         }
 
         // add scroll to .class action
-        AnAction scrollToClassFileAction = new ScrollToClassFileAction("Scroll to .class");
-        am.registerAction("S3UploadPlugin.ScrollToClassFile", scrollToClassFileAction);
+        ScrollToClassFileAction scrollToClassFileAction = new ScrollToClassFileAction("Scroll to .class");
+        am.registerAction(scrollToClassFileAction.getActionId(), scrollToClassFileAction);
         group.add(scrollToClassFileAction);
 
-        NotificationHelper.showEvent("S3UploadPlugin ready", INFORMATION);
+        NotificationHelper.showEvent("ready! Project: '" + amazonS3Service.getProjectName() + "'", INFORMATION);
     }
 }
