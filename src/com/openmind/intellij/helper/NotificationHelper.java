@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.util.AlarmFactory;
 
 
@@ -16,7 +17,7 @@ import com.intellij.util.AlarmFactory;
 public class NotificationHelper
 {
 
-    private static final String GROUP_DISPLAY_ID = "S3UploadPlugin balloon notifications";
+    private static final String GROUP_DISPLAY_ID = "S3UploadPlugin-balloon-notifications";
     private static final String NOTIFICATION_TITLE = "S3UploadPlugin";
 
     /**
@@ -24,7 +25,7 @@ public class NotificationHelper
      * @param html
      * @param notificationType
      */
-    public static void showEventAndBaloon(@NotNull String html, @NotNull NotificationType notificationType) {
+    public static void showEventAndBalloon(@NotNull String html, @NotNull NotificationType notificationType) {
         show(html, notificationType, false);
     }
 
@@ -41,20 +42,22 @@ public class NotificationHelper
      * Show message in event log and baloon (optional)
      * @param html
      * @param notificationType
-     * @param hideBaloon
+     * @param hideBalloon
      */
-    private static void show(@NotNull String html, @NotNull NotificationType notificationType, boolean hideBaloon) {
+    private static void show(@NotNull String html, @NotNull NotificationType notificationType, boolean hideBalloon) {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            Notification notification = new Notification(GROUP_DISPLAY_ID, NOTIFICATION_TITLE, html, notificationType);
+            Notifications.Bus.notify(notification);
 
-        Notification notification = new Notification(GROUP_DISPLAY_ID, NOTIFICATION_TITLE, html, notificationType);
-        Notifications.Bus.notify(notification);
+            if (hideBalloon && notification.getBalloon() != null)
+            {
+                notification.getBalloon().hide();
+            }
 
-        if (hideBaloon && notification.getBalloon() != null) {
-            notification.getBalloon().hide();
-        }
-
-        AlarmFactory.getInstance().create().addRequest(
-            notification::expire,
-            TimeUnit.SECONDS.toMillis(10)
-        );
+            AlarmFactory.getInstance().create().addRequest(
+                notification::expire,
+                TimeUnit.SECONDS.toMillis(10)
+            );
+        });
     }
 }

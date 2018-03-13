@@ -18,6 +18,7 @@ import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
@@ -28,7 +29,6 @@ import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.openapi.project.Project;
 import com.openmind.intellij.bean.UploadConfig;
@@ -107,13 +107,27 @@ public class AmazonS3Service
         return this.uploadConfigs;
     }
 
+    @NotNull
+    public String getProjectName() {
+        return customProperties.getProperty(PROJECT_NAME, project.getName());
+    }
+
+    @NotNull
+    public String getProject() {
+        return customProperties.getProperty(PROJECT_NAME, project.getName());
+    }
+
+    @NotNull
+    public static String getProjectName(@NotNull Project project) {
+        Properties properties = FileHelper.getProperties(project.getBasePath() + separator + S3_PROPERTIES_FILE);
+        return properties.getProperty(PROJECT_NAME, project.getName());
+    }
 
     /**
      * Add custom properties to defaults
      */
     private void loadCustomProperties() {
-        final String basePath = project.getBasePath();
-        customProperties = FileHelper.getProperties(basePath + separator + S3_PROPERTIES_FILE);
+        customProperties = FileHelper.getProperties(project.getBasePath() + separator + S3_PROPERTIES_FILE);
 
         // search custom mappings from config file suffix to deployed project
         customProperties.forEach((k,v) -> {
@@ -149,7 +163,7 @@ public class AmazonS3Service
      * Load configs from s3
      */
     @NotNull
-    private void loadUploadConfigs() {
+    private void loadUploadConfigs() throws IllegalArgumentException {
         final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
         final String lastVersionsPath = getLastVersionsPath();
@@ -167,12 +181,14 @@ public class AmazonS3Service
                 .filter(s -> !s.isEmpty())
                 .map(v -> new UploadConfig(v))
                 .collect(Collectors.toList());
-            return;
 
         } catch (Exception ex) {
-            NotificationHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
+            throw new IllegalArgumentException("Error " + ex.getMessage());
         }
-        this.uploadConfigs = Lists.newArrayList();
+
+        if (CollectionUtils.isEmpty(this.uploadConfigs)) {
+            throw new IllegalArgumentException("No config files found in " + bucketName + separator + lastVersionsPath);
+        }
     }
 
 
@@ -186,7 +202,7 @@ public class AmazonS3Service
         // get file to really upload
         final VirtualFile fileToUpload = FileHelper.getFileToUpload(originalFile);
         if (fileToUpload == null) {
-            NotificationHelper.showEventAndBaloon("File to upload not found", ERROR);
+            NotificationHelper.showEventAndBalloon("File to upload not found", ERROR);
             return;
         }
 
@@ -199,13 +215,13 @@ public class AmazonS3Service
         final String versionFilePath = lastVersionsPath + uploadConfig.getFullFileName();
         final S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
         if (versionS3object == null || versionS3object.getObjectContent() == null) {
-            NotificationHelper.showEventAndBaloon("Version file not found", ERROR);
+            NotificationHelper.showEventAndBalloon("Version file not found", ERROR);
             return;
         }
 
         final String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
         if (StringUtils.isEmpty(version)) {
-            NotificationHelper.showEventAndBaloon("Version file is empty", ERROR);
+            NotificationHelper.showEventAndBalloon("Version file is empty", ERROR);
             return;
         }
 
@@ -217,16 +233,11 @@ public class AmazonS3Service
 
             // upload file
             s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
-            NotificationHelper.showEventAndBaloon("Uploaded to " + deployPath, INFORMATION);
+            NotificationHelper.showEventAndBalloon("Uploaded to " + deployPath, INFORMATION);
 
         } catch (Exception ex) {
-            NotificationHelper.showEventAndBaloon("Error " + ex.getMessage(), ERROR);
+            NotificationHelper.showEventAndBalloon("Error " + ex.getMessage(), ERROR);
         }
-    }
-
-    @NotNull
-    public String getProjectName() {
-        return customProperties.getProperty(PROJECT_NAME, project.getName());
     }
 
     @NotNull

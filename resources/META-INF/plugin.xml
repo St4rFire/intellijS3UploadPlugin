@@ -27,10 +27,14 @@
   </extensions>
 
   <actions>
-      <group id="S3UploadPlugin.Menu" text="Upload to S3" description="Upload to S3" popup="true">
-          <add-to-group group-id="EditorPopupMenu" anchor="last"  />
+      <group id="S3UploadPlugin.Menu" text="Upload to S3" description="Upload to S3" popup="true" icon="/actions/export.png">
           <add-to-group group-id="ProjectViewPopupMenu" relative-to-action="CutCopyPasteGroup" anchor="after" />
+          <add-to-group group-id="EditorPopupMenu" anchor="last"  />
       </group>
+      <action id="S3UploadPlugin.ScrollToClassFile" class="com.openmind.intellij.action.ScrollToClassFileAction" text="Scroll to .class" description="Scroll to .class" icon="/actions/expandall.png">
+          <add-to-group group-id="ProjectViewPopupMenu" relative-to-action="S3UploadPlugin.Menu" anchor="after" />
+          <add-to-group group-id="EditorPopupMenu"      anchor="last"  />
+      </action>
   </actions>
 
 </idea-plugin>

@@ -2,6 +2,7 @@ package com.openmind.intellij.action;
 
 import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 
+import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -10,11 +11,11 @@ import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.openmind.intellij.bean.UploadConfig;
 import com.openmind.intellij.service.AmazonS3Service;
-
 
 /**
  * Upload a file to s3
@@ -33,14 +34,12 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
     }
 
     /**
-     * Menu click callback
+     * Menu click callback: upload to S3
      * @param anActionEvent
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
-        final PsiFile selectedFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
-        //final VirtualFile selectedFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
 
-        // upload to S3
+        final PsiFile selectedFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
         amazonS3Service.uploadFile(selectedFile, uploadConfig);
     }
 
@@ -50,8 +49,12 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
      */
     @Override
     public void update(AnActionEvent anActionEvent) {
+        Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
+
+        // could be a different project having same S3 project
+        boolean isSameS3Project = StringUtils.equals(AmazonS3Service.getProjectName(project), amazonS3Service.getProjectName());
         VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
-        anActionEvent.getPresentation().setEnabledAndVisible(!originalFile.isDirectory());
+        anActionEvent.getPresentation().setEnabledAndVisible(isSameS3Project && !originalFile.isDirectory());
     }
 
     @NotNull

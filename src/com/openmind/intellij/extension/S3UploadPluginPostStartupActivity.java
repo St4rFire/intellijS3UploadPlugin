@@ -1,5 +1,6 @@
 package com.openmind.intellij.extension;
 
+import static com.intellij.notification.NotificationType.ERROR;
 import static com.intellij.notification.NotificationType.INFORMATION;
 
 import org.jetbrains.annotations.NotNull;
@@ -30,28 +31,26 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             return;
         }
 
-        // setup S3 service
-        AmazonS3Service amazonS3Service;
+        // NotificationHelper.showEvent("num test '" + group.getChildrenCount() + "'", INFORMATION);
+
         try {
-            amazonS3Service = new AmazonS3Service(project);
+            // setup S3 service
+            AmazonS3Service amazonS3Service = new AmazonS3Service(project);
+
+            // add actions dynamically
+            for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs()) {
+                UploadFileToS3Action action = new UploadFileToS3Action(uploadConfig, amazonS3Service);
+                if (am.getAction(action.getActionId()) == null) {
+                    am.registerAction(action.getActionId(), action);
+                    group.add(action);
+                }
+            }
+
+            NotificationHelper.showEvent("ready! Project: '" + amazonS3Service.getProjectName() + "'", INFORMATION);
 
         } catch (IllegalArgumentException e) {
-            NotificationHelper.showEvent("disabled! " + e.getMessage(), INFORMATION);
-            return;
+            NotificationHelper.showEvent("disabled! " + e.getMessage(), ERROR);
         }
 
-        // add actions dynamically
-        for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs()) {
-            UploadFileToS3Action action = new UploadFileToS3Action(uploadConfig, amazonS3Service);
-            am.registerAction(action.getActionId(), action);
-            group.add(action);
-        }
-
-        // add scroll to .class action
-        ScrollToClassFileAction scrollToClassFileAction = new ScrollToClassFileAction("Scroll to .class");
-        am.registerAction(scrollToClassFileAction.getActionId(), scrollToClassFileAction);
-        group.add(scrollToClassFileAction);
-
-        NotificationHelper.showEvent("ready! Project: '" + amazonS3Service.getProjectName() + "'", INFORMATION);
     }
 }
