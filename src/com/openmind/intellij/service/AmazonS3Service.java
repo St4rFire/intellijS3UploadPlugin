@@ -5,19 +5,31 @@ import static java.io.File.*;
 import static org.apache.commons.lang.StringUtils.*;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
+import com.intellij.openapi.roots.OrderEnumerator;
+import com.intellij.openapi.roots.OrderRootsEnumerator;
+import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.roots.SourceFolder;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.jps.model.JpsElementFactory;
+import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
+import org.jetbrains.jps.model.module.JpsModuleSourceRoot;
+import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.regions.Regions;
@@ -63,21 +75,21 @@ public class AmazonS3Service
 
     // project recognition
     private static final String MAPPING_PROJECT = "mapping.project.";
-    private final HashMap<String,String> PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY =
+    private final HashMap<String,String> FROM_CONFIG_TO_DEPLOY_SUFFIX =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
-        .put("esb",         "esb")
-        .put("magnolia",    "webapp")
-        .put("hybris",      "todo")
-        .build());
+            .put("esb",         "esb")
+            .put("magnolia",    "webapp")
+            .put("hybris",      "todo")
+            .build());
 
     // src deploy path transformation
-    private static final String MAPPING_SRC = "mapping.src.";
-    private static final String SRC_MAIN = "/src/main/";
+    // todo usare classi idea?
+    private static final String MAPPING_SRC = "mapping.folder.";
     private final HashMap<String,String> SRC_FROM_PROJECT_TO_DEPLOY =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
-            .put("java",         "WEB-INF/classes")
-            .put("resources",    "WEB-INF/classes")
-            .put("webapp/",      "")
+            .put("src/main/java",         "WEB-INF/classes")
+            .put("src/main/resources",    "WEB-INF/classes")
+            .put("src/main/webapp/",      "")
             .build());
 
 
@@ -92,6 +104,27 @@ public class AmazonS3Service
      * @throws IllegalArgumentException
      */
     public AmazonS3Service(@NotNull Project project) throws IllegalArgumentException {
+
+        ProjectRootManager instance = ProjectRootManager.getInstance(project);
+        Set<? extends JpsModuleSourceRootType<?>> production = JavaModuleSourceRootTypes.PRODUCTION;
+
+        //        List<VirtualFile> virtualFiles = Arrays.asList(instance.getContentRoots());
+//        virtualFiles.forEach(v -> NotificationHelper.showEvent("root: " + v.getCanonicalPath(), ERROR));
+
+        // todo tenere solo quelli più corti ....fcom-webapp/src/main/java  fcom-webapp/src/main/resources
+//        List<VirtualFile> roots = instance.getModuleSourceRoots(production);
+//        roots.forEach(v -> NotificationHelper.showEvent("SourceRoot: " + v.getCanonicalPath(), ERROR));
+
+        // MavenSourceFoldersModuleExtension
+        //JpsModuleSourceRoot sourceRoot = JpsElementFactory.getInstance().createModuleSourceRoot(url, type, properties);
+
+//        List<Module> modules = Arrays.asList(ModuleManager.getInstance(project).getModules());
+//        for (Module module : modules) {
+//            OrderEnumerator orderEnumerator = OrderEnumerator.orderEntries(module);//.recursively().getClassesRoots();
+//            OrderRootsEnumerator classes = orderEnumerator.classes();
+//        }
+
+
         this.project = project;
         loadCustomProperties();
         checkSystemVars();
@@ -132,7 +165,7 @@ public class AmazonS3Service
         // search custom mappings from config file suffix to deployed project
         customProperties.forEach((k,v) -> {
             if (startsWith(k.toString(), MAPPING_PROJECT)) {
-                PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
+                FROM_CONFIG_TO_DEPLOY_SUFFIX.put(k.toString().replace(MAPPING_PROJECT, EMPTY), v.toString());
             }
         });
 
@@ -154,7 +187,7 @@ public class AmazonS3Service
         String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
 
         if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
-
+            System.getenv().forEach((k, v) -> NotificationHelper.showEvent(project, k + "=" + v, ERROR));
             throw new IllegalArgumentException("System Variables " + key + " or " + secret + " not found");
         }
     }
@@ -202,7 +235,7 @@ public class AmazonS3Service
         // get file to really upload
         final VirtualFile fileToUpload = FileHelper.getFileToUpload(originalFile);
         if (fileToUpload == null) {
-            NotificationHelper.showEventAndBalloon("File to upload not found", ERROR);
+            NotificationHelper.showEventAndBalloon(project, "File to upload not found", ERROR);
             return;
         }
 
@@ -215,13 +248,13 @@ public class AmazonS3Service
         final String versionFilePath = lastVersionsPath + uploadConfig.getFullFileName();
         final S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
         if (versionS3object == null || versionS3object.getObjectContent() == null) {
-            NotificationHelper.showEventAndBalloon("Version file not found", ERROR);
+            NotificationHelper.showEventAndBalloon(project, "Version file not found", ERROR);
             return;
         }
 
         final String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
         if (StringUtils.isEmpty(version)) {
-            NotificationHelper.showEventAndBalloon("Version file is empty", ERROR);
+            NotificationHelper.showEventAndBalloon(project,"Version file is empty", ERROR);
             return;
         }
 
@@ -233,10 +266,10 @@ public class AmazonS3Service
 
             // upload file
             s3Client.putObject(new PutObjectRequest(bucketName, deployPath, new File(fileToUpload.getCanonicalPath())));
-            NotificationHelper.showEventAndBalloon("Uploaded to " + deployPath, INFORMATION);
+            NotificationHelper.showEventAndBalloon(project, "Uploaded to " + deployPath, INFORMATION);
 
         } catch (Exception ex) {
-            NotificationHelper.showEventAndBalloon("Error " + ex.getMessage(), ERROR);
+            NotificationHelper.showEventAndBalloon(project, "Error " + ex.getMessage(), ERROR);
         }
     }
 
@@ -271,6 +304,7 @@ public class AmazonS3Service
      * @return
      * @throws IllegalArgumentException
      */
+    // todo FileUtilRt.toSystemIndependentName(
     @NotNull
     private String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
         @NotNull String patchPath, @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
@@ -282,43 +316,44 @@ public class AmazonS3Service
                 + (isNotEmpty(deployedProjectName) ? separator : EMPTY);
         }
 
-        // get "webapp" from "magnolia"
-        final String deployedProjectSuffix = PROJECT_SUFFIX_FROM_CONFIG_TO_DEPLOY.get(uploadConfig.getProjectName());
+        // get deployed project suffix from the one in configs
+        final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.get(uploadConfig.getProjectName());
 
+        final List<String> projectsList;
         try {
             // get list of deployed projects
             ListObjectsV2Request request = new ListObjectsV2Request()
                 .withBucketName(bucketName)
                 .withPrefix(patchPath);
 
-            ListObjectsV2Result listing = s3Client.listObjectsV2(request);
-            List<String> projectsList = listing.getObjectSummaries().stream()
+            projectsList = s3Client.listObjectsV2(request).getObjectSummaries().stream()
                 .map(s -> substringBefore(s.getKey().replaceFirst(patchPath, ""), "/"))
                 .distinct()
                 .collect(Collectors.toList());
 
-            if (projectsList.isEmpty()) {
-                throw new IllegalArgumentException("No project found in path " + bucketName + separator + patchPath);
-            }
-
-            // skip folder if only one project
-            if (projectsList.size() == 1) {
-                return EMPTY;
-            }
-
-            // search in s3 a folder with the selected suffix
-            Optional<String> matchingProject = projectsList.stream()
-                .filter(s -> !s.isEmpty()
-                    && StringUtils.equals(substringAfterLast(s, "-"), deployedProjectSuffix))
-                .findFirst();
-
-            if (matchingProject.isPresent()) {
-                deployedProjectName = matchingProject.get();
-            }
-
         } catch (Exception ex) {
-            NotificationHelper.showEvent("Error " + ex.getMessage(), ERROR);
+            throw new IllegalArgumentException("Error " + ex.getMessage());
         }
+
+        if (CollectionUtils.isEmpty(projectsList)) {
+            throw new IllegalArgumentException("No project found in path " + bucketName + separator + patchPath);
+        }
+
+        // skip folder if only one project
+        if (projectsList.size() == 1) {
+            return EMPTY;
+        }
+
+        // search in s3 a folder with the selected suffix
+        Optional<String> matchingProject = projectsList.stream()
+            .filter(s -> !s.isEmpty()
+                && StringUtils.equals(substringAfterLast(s, "-"), deployedProjectSuffix))
+            .findFirst();
+
+        if (matchingProject.isPresent()) {
+            deployedProjectName = matchingProject.get();
+        }
+
 
         if (isEmpty(deployedProjectName)) {
             throw new IllegalArgumentException("Could not map suffix " + deployedProjectSuffix
@@ -341,21 +376,23 @@ public class AmazonS3Service
         throws IllegalArgumentException {
 
         String originalPath = originalFile.getCanonicalPath();
-        if (originalPath == null || !originalPath.contains(SRC_MAIN)) {
+        if (originalPath == null) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        final String pathInSrcMain = substringAfter(originalPath, SRC_MAIN);
-
+        final String pathInProjectFolder = substringAfter(originalPath, project.getBasePath() + separator);
         Optional<Map.Entry<String, String>> mapping = SRC_FROM_PROJECT_TO_DEPLOY.entrySet().stream()
-            .filter(e -> pathInSrcMain.startsWith(e.getKey()))
+            .filter(e -> pathInProjectFolder.startsWith(e.getKey()))
             .findFirst();
 
-        if (!mapping.isPresent()) {
-            throw new IllegalArgumentException("Could not get deploy path "+ originalPath);
+        String convertedPath;
+        if (mapping.isPresent()) {
+            convertedPath = pathInProjectFolder.replaceFirst(mapping.get().getKey(), mapping.get().getValue());
+
+        } else {
+            convertedPath = pathInProjectFolder;
         }
 
-        String convertedPath = pathInSrcMain.replaceFirst(mapping.get().getKey(), mapping.get().getValue());
         return convertedPath.replace("." + originalFile.getExtension(), "." + fileToUpload.getExtension());
     }
 

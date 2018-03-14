@@ -42,13 +42,37 @@ Defaults are:
 ${project.name}-releases/versions/versionReadFromVersionFile/patch/  
 ```
 
-The folders in this path will be read and a match with the previously retrieved suffix will be searched. Default mappings are:
+## Mapping the deployed project 
+
+The folders in the deploy path will be read and a match with the previously retrieved suffix will be searched.  
+Default mappings are:
 ```
 "esb"      -> "esb"
 "magnolia" -> "webapp"
 "hybris"   -> "todo"
  ```
-Note: deploy folder will be skipped if only one project exists
+Note: deploy folder will be skipped if only one project exists.
+
+Custom mappings can be defined with:
+```
+mapping.project.suffixConfigFile = suffixDeployedProject  
+```
+
+## Mapping the folders inside the project 
+
+This is how the file path to upload is converted to the one inside te deployed project.
+Default mappings are:
+```
+"src/main/java"      -> "WEB-INF/classes"
+"src/main/resources" -> "WEB-INF/classes"
+"src/main/webapp/"   -> ""
+ ```
+ 
+Custom mappings can be defined with:
+```
+mapping.folder.folderInProject = folderInDeployedProject  
+```
+
 
 ## Es:
 Upload config:

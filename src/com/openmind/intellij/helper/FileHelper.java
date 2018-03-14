@@ -32,7 +32,7 @@ public class FileHelper {
 
         if (psiFile instanceof PsiJavaFile) {
             compiledFilePath = virtualFile.getCanonicalPath()
-                .replace("/src/main/java", "/target/classes")
+                .replace("/src/main/java", "/target/classes") // src -> classes, main/java -> target
                 .replace(".java", ".class");
         }
 

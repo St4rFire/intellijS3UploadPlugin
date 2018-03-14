@@ -5,9 +5,12 @@ import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.notification.Notification;
+import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.util.AlarmFactory;
 
 
@@ -17,47 +20,52 @@ import com.intellij.util.AlarmFactory;
 public class NotificationHelper
 {
 
-    private static final String GROUP_DISPLAY_ID = "S3UploadPlugin-balloon-notifications";
     private static final String NOTIFICATION_TITLE = "S3UploadPlugin";
+    private static final NotificationGroup NOTIFICATION_GROUP = NotificationGroup.balloonGroup("S3UploadPlugin-balloon-notifications");
+    private static final NotificationGroup NOTIFICATION_GROUP_LOG_ONLY = NotificationGroup.logOnlyGroup("S3UploadPlugin-balloon-notifications-log-only");
 
     /**
      * Show message in event log and baloon
+     * @param project
      * @param html
      * @param notificationType
      */
-    public static void showEventAndBalloon(@NotNull String html, @NotNull NotificationType notificationType) {
-        show(html, notificationType, false);
+    public static void showEventAndBalloon(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType) {
+        show(project, html, notificationType, true);
     }
 
     /**
      * Show message in event log
+     * @param project
      * @param html
      * @param notificationType
      */
-    public static void showEvent(@NotNull String html, @NotNull NotificationType notificationType) {
-        show(html, notificationType, true);
+    public static void showEvent(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType) {
+        show(project, html, notificationType, false);
     }
 
     /**
      * Show message in event log and baloon (optional)
+     * @param project
      * @param html
      * @param notificationType
-     * @param hideBalloon
+     * @param showBalloon
      */
-    private static void show(@NotNull String html, @NotNull NotificationType notificationType, boolean hideBalloon) {
+    private static void show(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType, boolean showBalloon) {
         ApplicationManager.getApplication().invokeLater(() -> {
-            Notification notification = new Notification(GROUP_DISPLAY_ID, NOTIFICATION_TITLE, html, notificationType);
-            Notifications.Bus.notify(notification);
 
-            if (hideBalloon && notification.getBalloon() != null)
-            {
-                notification.getBalloon().hide();
+            NotificationGroup group = showBalloon ? NOTIFICATION_GROUP : NOTIFICATION_GROUP_LOG_ONLY;
+            Notification notification =  group.createNotification(NOTIFICATION_TITLE, html, notificationType, null);
+            notification.notify(project);
+
+            if(showBalloon) {
+                AlarmFactory.getInstance().create().addRequest(
+                    notification::expire,
+                    TimeUnit.SECONDS.toMillis(10)
+                );
             }
 
-            AlarmFactory.getInstance().create().addRequest(
-                notification::expire,
-                TimeUnit.SECONDS.toMillis(10)
-            );
+            // Messages.showInfoMessage(NOTIFICATION_TITLE, NOTIFICATION_TITLE);
         });
     }
 }

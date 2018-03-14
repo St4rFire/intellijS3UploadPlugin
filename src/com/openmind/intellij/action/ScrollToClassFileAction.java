@@ -41,7 +41,7 @@ public class ScrollToClassFileAction extends AnAction {
             ScrollToFile.scroll(project, fileManaged);
 
         } else {
-            NotificationHelper.showEvent(".class file not found!", NotificationType.ERROR);
+            NotificationHelper.showEvent(project, ".class file not found!", NotificationType.ERROR);
         }
     }
 

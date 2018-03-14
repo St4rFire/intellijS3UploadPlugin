@@ -4,23 +4,9 @@
   <version>1.0</version>
   <vendor email="flavio.peri@openmindonline.it" url="http://www.openmindonline.it/">Openmind</vendor>
 
-  <description><![CDATA[
-      S3 Upload Plugin
-    ]]></description>
-
-  <change-notes><![CDATA[
-      No change notes
-    ]]>
-  </change-notes>
-
-  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+  <description><![CDATA[ S3 Upload Plugin ]]></description>
+  <change-notes><![CDATA[ No change notes]]></change-notes>
   <idea-version since-build="162.0"/>
-
-  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
-       on how to target different products -->
-  <!-- uncomment to enable plugin in all products
-  <depends>com.intellij.modules.lang</depends>
-  -->
 
   <extensions defaultExtensionNs="com.intellij">
       <postStartupActivity implementation="com.openmind.intellij.extension.S3UploadPluginPostStartupActivity"/>
@@ -33,7 +19,7 @@
       </group>
       <action id="S3UploadPlugin.ScrollToClassFile" class="com.openmind.intellij.action.ScrollToClassFileAction" text="Scroll to .class" description="Scroll to .class" icon="/actions/expandall.png">
           <add-to-group group-id="ProjectViewPopupMenu" relative-to-action="S3UploadPlugin.Menu" anchor="after" />
-          <add-to-group group-id="EditorPopupMenu"      anchor="last"  />
+          <add-to-group group-id="EditorPopupMenu" anchor="last"  />
       </action>
   </actions>
 
