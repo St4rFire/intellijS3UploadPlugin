@@ -1,4 +1,10 @@
+
 package com.openmind.intellij.helper;
+
+import static java.io.File.separator;
+import static org.apache.commons.lang.StringUtils.EMPTY;
+import static org.apache.commons.lang.StringUtils.replaceOnce;
+import static org.apache.commons.lang.StringUtils.startsWith;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -6,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.Properties;
 
 import org.apache.commons.lang3.StringUtils;
@@ -20,48 +27,12 @@ import com.intellij.psi.PsiJavaFile;
 
 public class FileHelper {
 
-    /**
-     * Get compile file
-     * @param psiFile
-     * @return null if not found
-     */
-    @Nullable
-    public static VirtualFile getCompiledFile(@NotNull PsiFile psiFile) {
-        final VirtualFile virtualFile = psiFile.getVirtualFile();
-        String compiledFilePath = null;
 
-        if (psiFile instanceof PsiJavaFile) {
-            compiledFilePath = virtualFile.getCanonicalPath()
-                .replace("/src/main/java", "/target/classes") // src -> classes, main/java -> target
-                .replace(".java", ".class");
-        }
+    public static final String PROJECT_PROPERTIES_FILE = "s3upload.properties";
+    public static final String DOT = ".";
+    public static final String COMMA = ",";
+    public static final String COLON = ":";
 
-        if(StringUtils.isNotEmpty(compiledFilePath)) {
-
-            final VirtualFile compiledFile = virtualFile.getFileSystem().findFileByPath(compiledFilePath);
-            if (compiledFile != null && compiledFile.exists()) {
-                return compiledFile;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get file to upload
-     * @param psiFile
-     * @return virtualFile
-     */
-    @Nullable
-    public static VirtualFile getFileToUpload(@NotNull PsiFile psiFile) {
-
-        // get compiled files
-        if (psiFile instanceof PsiJavaFile) {
-            return FileHelper.getCompiledFile(psiFile);
-        }
-
-        return psiFile.getVirtualFile();
-    }
 
     /**
      * Read text from file
@@ -80,6 +51,19 @@ public class FileHelper {
         }
     }
 
+    public static Properties getProjectProperties(@NotNull Project project) {
+        return FileHelper.getProperties(project.getBasePath() + DOT + PROJECT_PROPERTIES_FILE);
+    }
+
+
+    public static void updateConfigFromProperties(@NotNull Properties properties, @NotNull String prefix,
+        @NotNull HashMap<String,String> config) {
+        properties.forEach((k,v) -> {
+            if (startsWith(k.toString(), prefix)) {
+                config.put(replaceOnce(k.toString(), prefix, EMPTY), v.toString());
+            }
+        });
+    }
 
     /**
      * Load file as Properties

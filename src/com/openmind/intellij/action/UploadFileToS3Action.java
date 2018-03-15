@@ -4,13 +4,13 @@ import static com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
@@ -24,13 +24,11 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
 
     private final String actionId;
     private UploadConfig uploadConfig;
-    private AmazonS3Service amazonS3Service;
 
-    public UploadFileToS3Action(@Nullable UploadConfig uploadConfig, @Nullable AmazonS3Service amazonS3Service){
+    public UploadFileToS3Action(@NotNull UploadConfig uploadConfig){
         super(uploadConfig.getFileName(), null, null);
-        this.actionId = "S3UploadPlugin.UploadAction" + uploadConfig.getFileName();
+        this.actionId = "S3UploadPlugin.UploadAction." + uploadConfig.getFileName();
         this.uploadConfig = uploadConfig;
-        this.amazonS3Service = amazonS3Service;
     }
 
     /**
@@ -38,9 +36,11 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
      * @param anActionEvent
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
-
+        final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
         final PsiFile selectedFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
-        amazonS3Service.uploadFile(selectedFile, uploadConfig);
+
+        AmazonS3Service amazonS3Service = ServiceManager.getService(project, AmazonS3Service.class);
+        amazonS3Service.uploadFile(selectedFile.getVirtualFile(), uploadConfig);
     }
 
     /**
@@ -49,10 +49,11 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
      */
     @Override
     public void update(AnActionEvent anActionEvent) {
-        Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
+        final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
 
         // could be a different project having same S3 project
-        boolean isSameS3Project = StringUtils.equals(AmazonS3Service.getProjectName(project), amazonS3Service.getProjectName());
+        AmazonS3Service amazonS3Service = ServiceManager.getService(project, AmazonS3Service.class);
+        boolean isSameS3Project = StringUtils.equals(amazonS3Service.getProjectName(), uploadConfig.getProjectName());
         VirtualFile originalFile = VIRTUAL_FILE.getData(anActionEvent.getDataContext());
         anActionEvent.getPresentation().setEnabledAndVisible(isSameS3Project && !originalFile.isDirectory());
     }
@@ -68,6 +69,5 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
     {
         ActionManager.getInstance().unregisterAction(actionId);
         uploadConfig = null;
-        amazonS3Service = null;
     }
 }

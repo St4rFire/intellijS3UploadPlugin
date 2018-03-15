@@ -10,6 +10,10 @@
 
   <extensions defaultExtensionNs="com.intellij">
       <postStartupActivity implementation="com.openmind.intellij.extension.S3UploadPluginPostStartupActivity"/>
+      <projectService serviceInterface="com.openmind.intellij.service.OutputFileService"
+                      serviceImplementation="com.openmind.intellij.service.impl.OutputFileServiceImpl"/>
+      <projectService serviceInterface="com.openmind.intellij.service.AmazonS3Service"
+                      serviceImplementation="com.openmind.intellij.service.impl.AmazonS3ServiceImpl"/>
   </extensions>
 
   <actions>
