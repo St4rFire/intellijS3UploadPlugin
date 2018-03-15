@@ -5,18 +5,24 @@ import org.apache.commons.lang.StringUtils;
 
 public class UploadConfig
 {
+    private String projectName;
     private String fullFileName;
     private String fileName;
-    private String projectName;
+    private String subProjectName;
     private boolean isProd;
 
-    public UploadConfig(String versionFile) {
-        this.fullFileName = versionFile;
-        this.fileName = StringUtils.substringBeforeLast(versionFile, ".");
-        this.projectName = StringUtils.substringAfterLast(this.fileName, "-");
+    public UploadConfig(String projectName, String versionFileName) {
+        this.projectName = projectName;
+        this.fullFileName = versionFileName;
+        this.fileName = StringUtils.substringBeforeLast(versionFileName, ".");
+        this.subProjectName = StringUtils.substringAfterLast(this.fileName, "-");
         this.isProd = this.fileName.startsWith("pro");
     }
 
+    public String getProjectName()
+    {
+        return projectName;
+    }
 
     public String getFullFileName()
     {
@@ -28,9 +34,9 @@ public class UploadConfig
         return fileName;
     }
 
-    public String getProjectName()
+    public String getSubProjectName()
     {
-        return projectName;
+        return subProjectName;
     }
 
     public boolean isProd()

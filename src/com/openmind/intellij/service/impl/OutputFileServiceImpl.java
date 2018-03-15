@@ -35,22 +35,23 @@ import com.openmind.intellij.service.OutputFileService;
 import com.intellij.openapi.project.Project;
 
 
-public class OutputFileServiceImpl implements OutputFileService
-{
-    private static final String EXTENSION_PREFIX_KEY = ":";
+public class OutputFileServiceImpl implements OutputFileService {
 
     // extensions to convert
-    private static final String EXTENSION_MAPPING_KEY = "output.mapping.extension."; // java=class
+    private static final String EXTENSION_MAPPING_KEY = "compiled.mapping.extension."; // java=class
 
     // paths to convert
-    private static final String COMPILED_PATH_KEY = "output.mapping.path."; //java =/path1:/path2,/path3:/path4
+    private static final String COMPILED_PATH_KEY = "compiled.mapping.path."; //java =/path1:/path2,/path3:/path4
 
     // subclasses
-    private static final String SUBCLASSES_KEY = "output.mapping.subclasses."; //java = $
+    private static final String SUBCLASSES_KEY = "compiled.mapping.subclasses."; //java = $
 
+    private static final ExtensionBehavior JAVA_BEHAVIOR = new ExtensionBehavior("class",
+        ImmutableMap.of("/src/main/java", "/target/classes", "/src/groovy", "/target/classes"), "$");
 
     private final HashMap<String, ExtensionBehavior> EXTENSIONS_BEHAVIOR = Maps.newHashMap(ImmutableMap.<String, ExtensionBehavior>builder()
-        .put("java", new ExtensionBehavior("class", ImmutableMap.of("/src/main/java", "/target/classes"), "$"))
+        .put("java", JAVA_BEHAVIOR)
+        .put("groovy", JAVA_BEHAVIOR)
         .build());
 
 
@@ -80,7 +81,7 @@ public class OutputFileServiceImpl implements OutputFileService
             // path behavior
             if (startsWith(key, COMPILED_PATH_KEY) && contains(key, COLON)) {
                 String extension = replaceOnce(key, COMPILED_PATH_KEY, EMPTY);
-                List<String> pathMappings = Arrays.asList(split(v.toString(), COMMA));
+                List<String> pathMappings = Arrays.asList(split(v.toString().replaceAll("\\s",""), COMMA));
 
                 Map<String, String> pathMappingsMap = pathMappings.stream()
                     .map(m -> split(m, COLON))
@@ -126,7 +127,7 @@ public class OutputFileServiceImpl implements OutputFileService
 
         // replace path
         Optional<Map.Entry<String, String>> pathToReplace = extensionBehavior.getPathMappings().entrySet().stream()
-            .filter(m -> contains(originalPath, m.getKey()))
+            .filter(m -> contains(originalPath, m.getKey())) // todo regex
             .findFirst();
 
         if (pathToReplace.isPresent()) {
@@ -157,8 +158,8 @@ public class OutputFileServiceImpl implements OutputFileService
 
     @NotNull
     @Override
-    public List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile)
-    {
+    public List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile) {
+
         // find subclasses
         final ExtensionBehavior extensionBehavior = getExtensionBehavior(originalFile.getExtension());
         if (extensionBehavior == null) {
@@ -187,7 +188,7 @@ public class OutputFileServiceImpl implements OutputFileService
     public String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
         throws IllegalArgumentException {
 
-        String originalPath = substringBeforeLast(originalFile.getCanonicalPath(), DOT);
+        String originalPath = substringBeforeLast(originalFile.getCanonicalPath(), separator);
         if (originalPath == null) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
@@ -198,10 +199,10 @@ public class OutputFileServiceImpl implements OutputFileService
             .findFirst();
 
         if (mapping.isPresent()) {
-            return replaceOnce(pathInProjectFolder, mapping.get().getKey(), mapping.get().getValue());
+            return replaceOnce(pathInProjectFolder, mapping.get().getKey(), mapping.get().getValue()) + separator;
 
         }
-        return pathInProjectFolder;
+        return pathInProjectFolder + separator;
     }
 
 
@@ -220,7 +221,7 @@ public class OutputFileServiceImpl implements OutputFileService
         return extensionBehavior;
     }
 
-    private class ExtensionBehavior {
+    private static class ExtensionBehavior {
 
         private String outputExtension;
 

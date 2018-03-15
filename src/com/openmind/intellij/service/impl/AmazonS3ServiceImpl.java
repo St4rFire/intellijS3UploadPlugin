@@ -44,8 +44,8 @@ import com.openmind.intellij.service.OutputFileService;
 /**
  * Upload file to S3. S3 env credentials have to be set
  */
-public class AmazonS3ServiceImpl implements AmazonS3Service
-{
+public class AmazonS3ServiceImpl implements AmazonS3Service {
+
     // credentials
     private static final String AWS_SYSTEM_ACCESS_KEY = "AWS_ACCESS_KEY";
     private static final String AWS_SYSTEM_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY";
@@ -182,7 +182,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service
             uploadConfigs = listing.getObjectSummaries().stream()
                 .map(s -> replaceOnce(s.getKey(), lastVersionsPath, ""))
                 .filter(s -> !s.isEmpty())
-                .map(v -> new UploadConfig(v))
+                .map(versionFileName -> new UploadConfig(projectName, versionFileName))
                 .collect(Collectors.toList());
 
         } catch (Exception ex) {
@@ -206,7 +206,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service
 
         // get file to really upload
         final VirtualFile outputFiles = outputFileService.getOutputFile(originalFile);
-        if (outputFiles != null) {
+        if (outputFiles == null) {
             NotificationHelper.showEventAndBalloon(project, "File to upload not found", ERROR);
             return;
         }
@@ -239,11 +239,10 @@ public class AmazonS3ServiceImpl implements AmazonS3Service
             List<VirtualFile> filesToUpload = Arrays.asList(outputFiles);
             filesToUpload.addAll(outputFileService.findSubclasses(originalFile, outputFiles));
             filesToUpload.forEach(o -> {
-                String fullS3FilePath = deployPath + DOT + o.getName();
-                s3Client.putObject(new PutObjectRequest(bucketName,fullS3FilePath, new File(o.getCanonicalPath())));
+                String fullS3FilePath = deployPath + o.getName();
+                s3Client.putObject(new PutObjectRequest(bucketName, fullS3FilePath, new File(o.getCanonicalPath())));
+                NotificationHelper.showEventAndBalloon(project, "Uploaded to " + fullS3FilePath, INFORMATION);
             });
-
-            NotificationHelper.showEventAndBalloon(project, "Uploaded to " + deployPath, INFORMATION);
 
         } catch (Exception ex) {
             NotificationHelper.showEventAndBalloon(project, "Error " + ex.getMessage(), ERROR);
@@ -294,7 +293,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service
         }
 
         // get deployed project suffix from the one in configs
-        final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.get(uploadConfig.getProjectName());
+        final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.get(uploadConfig.getSubProjectName());
 
         final List<String> projectsList;
         try {

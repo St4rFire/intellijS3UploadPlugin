@@ -10,10 +10,9 @@ import com.openmind.intellij.bean.UploadConfig;
 import org.jetbrains.annotations.NotNull;
 
 
-public interface AmazonS3Service
-{
-    static AmazonS3Service getInstance(@NotNull Project project)
-    {
+public interface AmazonS3Service {
+
+    static AmazonS3Service getInstance(@NotNull Project project) {
         return ServiceManager.getService(project, AmazonS3Service.class);
     }
 

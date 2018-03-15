@@ -27,8 +27,10 @@ ${bucket.name}/${last.versions.path}
 ```
 
 From these files will be retrieved:
- - the current version: from file text
- - the project to deploy: from file name suffix. Es pro-esb will search a project ending with "esb" in deploy folder
+ - the current version: from file first line.
+ - the project to deploy: from file name suffix. 
+ 
+Eg: pro-esb.txt containing 12.3.4 will search a project ending with "esb" in deploy folder, version 12.3.4
  
 ## S3 deploy path
  
@@ -44,7 +46,7 @@ ${project.name}-releases/versions/versionReadFromVersionFile/patch/
 
 ## Mapping the deployed project 
 
-The folders in the deploy path will be read and a match with the previously retrieved suffix will be searched.  
+The suffix of folders in "versions.path" will be matched with the "last.versions.path" suffix.  
 Default mappings are:
 ```
 "esb"      -> "esb"
@@ -55,12 +57,12 @@ Note: deploy folder will be skipped if only one project exists.
 
 Custom mappings can be defined with:
 ```
-mapping.project.suffixConfigFile = suffixDeployedProject  
+mapping.project.suffixIn"last.versions.path"= suffixIn"patch"
 ```
 
 ## Mapping the folders inside the project 
 
-This is how the file path to upload is converted to the one inside te deployed project.
+Folders that change path when deployed can be configured.
 Default mappings are:
 ```
 "src/main/java"      -> "WEB-INF/classes"
@@ -70,9 +72,18 @@ Default mappings are:
  
 Custom mappings can be defined with:
 ```
-mapping.folder.folderInProject = folderInDeployedProject  
+output.mapping.folder.pathA = pathB 
 ```
 
+## Mapping compiled files 
+
+This is how a file is mapped to its compiled ones. Es java:
+```
+compiled.mapping.extension.java = class
+compiled.mapping.subclasses.java = $
+compiled.mapping.path.java = /src/main/java:/target/classes,/path3:/path4
+ ```
+ 
 
 ## Es:
 Upload config:

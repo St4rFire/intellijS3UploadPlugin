@@ -10,10 +10,9 @@ import com.openmind.intellij.service.impl.OutputFileServiceImpl;
 import org.jetbrains.annotations.NotNull;
 
 
-public interface OutputFileService
-{
-    static OutputFileService getInstance(@NotNull Project project)
-    {
+public interface OutputFileService {
+
+    static OutputFileService getInstance(@NotNull Project project) {
         return ServiceManager.getService(project, OutputFileService.class);
     }
 
