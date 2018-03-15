@@ -155,7 +155,9 @@ public class AmazonS3ServiceImpl implements AmazonS3Service
         String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
 
         if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
+            // todo remove
             System.getenv().forEach((k, v) -> NotificationHelper.showEvent(project, k + "=" + v, ERROR));
+
             throw new IllegalArgumentException("System Variables " + key + " or " + secret + " not found");
         }
     }

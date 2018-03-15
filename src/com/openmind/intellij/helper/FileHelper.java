@@ -52,7 +52,7 @@ public class FileHelper {
     }
 
     public static Properties getProjectProperties(@NotNull Project project) {
-        return FileHelper.getProperties(project.getBasePath() + DOT + PROJECT_PROPERTIES_FILE);
+        return FileHelper.getProperties(project.getBasePath() + separator + PROJECT_PROPERTIES_FILE);
     }
 
 
