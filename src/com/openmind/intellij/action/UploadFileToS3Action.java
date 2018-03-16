@@ -42,10 +42,11 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
         final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
+        final Module module = anActionEvent.getData(LangDataKeys.MODULE);
         final PsiFile selectedFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
 
         AmazonS3Service amazonS3Service = ServiceManager.getService(project, AmazonS3Service.class);
-        amazonS3Service.uploadFile(selectedFile.getVirtualFile(), uploadConfig);
+        amazonS3Service.uploadFile(module, selectedFile.getVirtualFile(), uploadConfig);
     }
 
     /**

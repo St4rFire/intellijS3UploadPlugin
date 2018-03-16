@@ -93,15 +93,12 @@ public class OutputFileServiceImpl implements OutputFileService {
             .map(v -> v.getCanonicalPath())
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
-        modulesRoots.forEach(v -> NotificationHelper.showEvent(project, "ContentRoots: " + v, ERROR));
 
-        // fcom/web/cart-dao/src/main/java
-        // fcom/web/cart-dao/src/main/resources
+        // .../main/java and .../main/resources
         this.moduleSourceRoots = instance.getModuleSourceRoots(JavaModuleSourceRootTypes.PRODUCTION).stream()
             .map(v -> v.getCanonicalPath())
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
-        moduleSourceRoots.forEach(v -> NotificationHelper.showEvent(project, "ModuleSourceRoots: " + v, ERROR));
 
         this.customProperties = getProjectProperties(project);
         customProperties.forEach((k,v) -> {
@@ -138,7 +135,12 @@ public class OutputFileServiceImpl implements OutputFileService {
         FileHelper.updateConfigFromProperties(customProperties, FOLDERS_REMAPPING_KEY, FOLDERS_REMAPPING);
     }
 
+    @Nullable
     private String convertToOutputPath(Module module, String originalPath) {
+
+        if (module == null) {
+            return null;
+        }
 
         // get output path
         final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );

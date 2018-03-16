@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 import org.springframework.util.CollectionUtils;
@@ -209,14 +210,16 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
     /**
      * Upload to S3
+     * @param module
      * @param originalFile
      * @param uploadConfig
      */
     @Override
-    public void uploadFile(@NotNull VirtualFile originalFile, @NotNull UploadConfig uploadConfig) {
+    public void uploadFile(@Nullable Module module, @NotNull VirtualFile originalFile,
+        @NotNull UploadConfig uploadConfig) {
 
         // get file to really upload
-        final VirtualFile outputFiles = outputFileService.getOutputFile(null, originalFile);
+        final VirtualFile outputFiles = outputFileService.getOutputFile(module, originalFile);
         if (outputFiles == null) {
             NotificationHelper.showEventAndBalloon(project, "File to upload not found", ERROR);
             return;
