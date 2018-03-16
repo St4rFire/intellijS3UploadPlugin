@@ -1,5 +1,6 @@
 package com.openmind.intellij.service.impl;
 
+import static com.intellij.notification.NotificationType.ERROR;
 import static com.openmind.intellij.helper.FileHelper.COLON;
 import static com.openmind.intellij.helper.FileHelper.COMMA;
 import static com.openmind.intellij.helper.FileHelper.DOT;
@@ -7,6 +8,8 @@ import static com.openmind.intellij.helper.FileHelper.getProjectProperties;
 import static java.io.File.separator;
 import static org.apache.commons.lang.StringUtils.EMPTY;
 import static org.apache.commons.lang.StringUtils.contains;
+import static org.apache.commons.lang.StringUtils.defaultString;
+import static org.apache.commons.lang.StringUtils.isEmpty;
 import static org.apache.commons.lang.StringUtils.isNotEmpty;
 import static org.apache.commons.lang.StringUtils.replaceOnce;
 import static org.apache.commons.lang.StringUtils.split;
@@ -16,6 +19,7 @@ import static org.apache.commons.lang.StringUtils.substringBeforeLast;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,11 +30,17 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.intellij.notification.NotificationType;
+import com.intellij.openapi.compiler.CompilerPaths;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.helper.FileHelper;
+import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.OutputFileService;
 import com.intellij.openapi.project.Project;
 
@@ -65,16 +75,35 @@ public class OutputFileServiceImpl implements OutputFileService {
             .put("src/main/webapp/",      "")
             .build());
 
+    // Module module = ModuleUtil.findModuleForPsiElement( element );
+
     private final Project project;
     private final Properties customProperties;
+    private final List<String> modulesRoots; // todo usare come fallback?
+    private final List<String> moduleSourceRoots;
 
 
 
     public OutputFileServiceImpl(@NotNull Project project) {
 
         this.project = project;
-        this.customProperties = getProjectProperties(project);
 
+        ProjectRootManager instance = ProjectRootManager.getInstance(project);
+        this.modulesRoots = Arrays.stream(instance.getContentRoots())
+            .map(v -> v.getCanonicalPath())
+            .sorted(Comparator.reverseOrder())
+            .collect(Collectors.toList());
+        modulesRoots.forEach(v -> NotificationHelper.showEvent(project, "ContentRoots: " + v, ERROR));
+
+        // fcom/web/cart-dao/src/main/java
+        // fcom/web/cart-dao/src/main/resources
+        this.moduleSourceRoots = instance.getModuleSourceRoots(JavaModuleSourceRootTypes.PRODUCTION).stream()
+            .map(v -> v.getCanonicalPath())
+            .sorted(Comparator.reverseOrder())
+            .collect(Collectors.toList());
+        moduleSourceRoots.forEach(v -> NotificationHelper.showEvent(project, "ModuleSourceRoots: " + v, ERROR));
+
+        this.customProperties = getProjectProperties(project);
         customProperties.forEach((k,v) -> {
             final String key = k.toString();
 
@@ -109,6 +138,25 @@ public class OutputFileServiceImpl implements OutputFileService {
         FileHelper.updateConfigFromProperties(customProperties, FOLDERS_REMAPPING_KEY, FOLDERS_REMAPPING);
     }
 
+    private String convertToOutputPath(Module module, String originalPath) {
+
+        // get output path
+        final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
+        NotificationHelper.showEvent(project, "getModuleOutputDirectory: " + moduleOutputPath, NotificationType.ERROR);
+
+        if (isNotEmpty(moduleOutputPath)) {
+
+            // get matching source path
+            Optional<String> sourceRoot = moduleSourceRoots.stream().filter(s -> startsWith(originalPath, s)).findFirst();
+            if (sourceRoot.isPresent()) {
+                NotificationHelper.showEvent(project, "sourceRoot: " + sourceRoot, NotificationType.ERROR);
+
+                // replace source path with output path
+                return moduleOutputPath + replaceOnce(originalPath, sourceRoot.get(), EMPTY);
+            }
+        }
+        return null;
+    }
 
     /**
      * Get compiled file if needed
@@ -116,22 +164,33 @@ public class OutputFileServiceImpl implements OutputFileService {
      * @return null if not found
      */
     @Nullable
-    public VirtualFile getOutputFile(@NotNull VirtualFile originalFile) {
+    public VirtualFile getOutputFile(Module module, @NotNull VirtualFile originalFile) {
+
         final String originalExtension = originalFile.getExtension();
         final ExtensionBehavior extensionBehavior = getExtensionBehavior(originalExtension);
         if (extensionBehavior == null) {
             return originalFile;
         }
         final String originalPath = originalFile.getCanonicalPath();
-        String outputPath = originalPath;
 
-        // replace path
-        Optional<Map.Entry<String, String>> pathToReplace = extensionBehavior.getPathMappings().entrySet().stream()
-            .filter(m -> contains(originalPath, m.getKey())) // todo regex
-            .findFirst();
+        // try automatic module path conversion
+        String outputPath = convertToOutputPath(module, originalPath);
 
-        if (pathToReplace.isPresent()) {
-            outputPath = replaceOnce(outputPath, pathToReplace.get().getKey(), pathToReplace.get().getValue());
+        // try custom path conversion
+        if (isEmpty(outputPath)) {
+            NotificationHelper.showEvent(project, "try custom path ", NotificationType.ERROR);
+            Optional<Map.Entry<String, String>> pathToReplace = extensionBehavior.getPathMappings().entrySet().stream()
+                .filter(m -> contains(originalPath, m.getKey())) // todo regex
+                .findFirst();
+
+            if (pathToReplace.isPresent()) {
+                outputPath = replaceOnce(originalPath, pathToReplace.get().getKey(), pathToReplace.get().getValue());
+            }
+        }
+
+        // no conversion
+        if (isEmpty(outputPath)) {
+            outputPath = originalPath;
         }
 
         // replace extension
@@ -185,6 +244,8 @@ public class OutputFileServiceImpl implements OutputFileService {
      */
     @Override
     @NotNull
+    // project.getBasePath();
+    // com.intellij.openapi.util.io.FileUtil.toCanonicalPath(java.lang.String)
     public String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
         throws IllegalArgumentException {
 
@@ -193,6 +254,7 @@ public class OutputFileServiceImpl implements OutputFileService {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
+        //???????????
         final String pathInProjectFolder = substringAfter(originalPath, project.getBasePath() + separator);
         Optional<Map.Entry<String, String>> mapping = FOLDERS_REMAPPING.entrySet().stream()
             .filter(e -> pathInProjectFolder.startsWith(e.getKey()))

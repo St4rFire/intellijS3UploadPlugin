@@ -3,6 +3,7 @@ package com.openmind.intellij.service;
 import java.util.List;
 
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.service.impl.OutputFileServiceImpl;
@@ -17,7 +18,7 @@ public interface OutputFileService {
     }
 
     @NotNull
-    VirtualFile getOutputFile(@NotNull VirtualFile originalFile);
+    VirtualFile getOutputFile(Module module, @NotNull VirtualFile originalFile);
 
     @NotNull
     List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile);

@@ -1,11 +1,21 @@
 package com.openmind.intellij.service.impl;
 
-import static com.intellij.notification.NotificationType.*;
-import static com.openmind.intellij.helper.FileHelper.DOT;
-import static java.io.File.*;
-import static org.apache.commons.lang.StringUtils.*;
+import static com.intellij.notification.NotificationType.ERROR;
+import static com.intellij.notification.NotificationType.INFORMATION;
+import static com.intellij.openapi.util.io.FileUtil.toCanonicalPath;
+import static java.io.File.separator;
+import static org.apache.commons.lang.StringUtils.EMPTY;
+import static org.apache.commons.lang.StringUtils.defaultString;
+import static org.apache.commons.lang.StringUtils.isEmpty;
+import static org.apache.commons.lang.StringUtils.isNotEmpty;
+import static org.apache.commons.lang.StringUtils.replaceOnce;
+import static org.apache.commons.lang.StringUtils.substringAfterLast;
+import static org.apache.commons.lang.StringUtils.substringBefore;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -14,11 +24,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.openmind.intellij.helper.FileHelper;
-import com.openmind.intellij.helper.NotificationHelper;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
@@ -35,8 +40,16 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.roots.ProjectRootManager;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
 import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.helper.FileHelper;
+import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.AmazonS3Service;
 import com.openmind.intellij.service.OutputFileService;
 
@@ -87,27 +100,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      * @throws IllegalArgumentException
      */
     public AmazonS3ServiceImpl(@NotNull Project project) throws IllegalArgumentException {
-
-        ProjectRootManager instance = ProjectRootManager.getInstance(project);
-        Set<? extends JpsModuleSourceRootType<?>> production = JavaModuleSourceRootTypes.PRODUCTION;
-
-        //        List<VirtualFile> virtualFiles = Arrays.asList(instance.getContentRoots());
-//        virtualFiles.forEach(v -> NotificationHelper.showEvent("root: " + v.getCanonicalPath(), ERROR));
-
-        // todo tenere solo quelli più corti ....fcom-webapp/src/main/java  fcom-webapp/src/main/resources
-//        List<VirtualFile> roots = instance.getModuleSourceRoots(production);
-//        roots.forEach(v -> NotificationHelper.showEvent("SourceRoot: " + v.getCanonicalPath(), ERROR));
-
-        // MavenSourceFoldersModuleExtension
-        //JpsModuleSourceRoot sourceRoot = JpsElementFactory.getInstance().createModuleSourceRoot(url, type, properties);
-
-//        List<Module> modules = Arrays.asList(ModuleManager.getInstance(project).getModules());
-//        for (Module module : modules) {
-//            OrderEnumerator orderEnumerator = OrderEnumerator.orderEntries(module);//.recursively().getClassesRoots();
-//            OrderRootsEnumerator classes = orderEnumerator.classes();
-//        }
-
-
         this.project = project;
         this.customProperties = loadCustomProperties();
         checkSystemVars();
@@ -153,13 +145,32 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         String projectPrefix = getProjectName().toUpperCase() + "_";
         String key = projectPrefix + AWS_SYSTEM_ACCESS_KEY;
         String secret = projectPrefix + AWS_SYSTEM_SECRET_ACCESS_KEY;
+        String keyValue = defaultString(System.getenv(key), execEcho(key));
+        String secretValue = defaultString(System.getenv(secret), execEcho(secret));
 
-        if (isEmpty(System.getenv(key)) || isEmpty(System.getenv(secret))) {
-            // todo remove
-            System.getenv().forEach((k, v) -> NotificationHelper.showEvent(project, k + "=" + v, ERROR));
-
+        if (isEmpty(keyValue) || isEmpty(secretValue)) {
             throw new IllegalArgumentException("System Variables " + key + " or " + secret + " not found");
         }
+    }
+
+    /**
+     * Sometimes Intellij is not finding system vars
+     * @param systemVar
+     * @return
+     */
+    private String execEcho(String systemVar) {
+        try
+        {
+            String[] cmdline = { "sh", "-c", "echo $" + systemVar };
+            Process process = Runtime.getRuntime().exec(cmdline);
+            process.waitFor();
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            return stdInput.readLine();
+        }
+        catch (IOException | InterruptedException e)
+        {
+        }
+        return null;
     }
 
     /**
@@ -205,7 +216,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     public void uploadFile(@NotNull VirtualFile originalFile, @NotNull UploadConfig uploadConfig) {
 
         // get file to really upload
-        final VirtualFile outputFiles = outputFileService.getOutputFile(originalFile);
+        final VirtualFile outputFiles = outputFileService.getOutputFile(null, originalFile);
         if (outputFiles == null) {
             NotificationHelper.showEventAndBalloon(project, "File to upload not found", ERROR);
             return;

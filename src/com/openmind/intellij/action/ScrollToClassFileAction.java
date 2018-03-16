@@ -4,8 +4,11 @@ import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.compiler.CompilerPaths;
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
@@ -30,12 +33,13 @@ public class ScrollToClassFileAction extends AnAction {
      * @param anActionEvent
      */
     public void actionPerformed(AnActionEvent anActionEvent) {
-        Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
-        PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
+        final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
+        final Module module = anActionEvent.getData(LangDataKeys.MODULE);
+        final PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
 
         // get compiled class
         OutputFileService outputFileService = ServiceManager.getService(project, OutputFileService.class);
-        VirtualFile compiledFile = outputFileService.getOutputFile(psiFile.getVirtualFile());
+        VirtualFile compiledFile = outputFileService.getOutputFile(module, psiFile.getVirtualFile());
 
         // scroll to file in navigator if found
         if(compiledFile != null) {
