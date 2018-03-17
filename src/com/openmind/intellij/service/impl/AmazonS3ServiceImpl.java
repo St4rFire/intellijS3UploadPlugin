@@ -2,7 +2,6 @@ package com.openmind.intellij.service.impl;
 
 import static com.intellij.notification.NotificationType.ERROR;
 import static com.intellij.notification.NotificationType.INFORMATION;
-import static com.intellij.openapi.util.io.FileUtil.toCanonicalPath;
 import static java.io.File.separator;
 import static org.apache.commons.lang.StringUtils.EMPTY;
 import static org.apache.commons.lang.StringUtils.defaultString;
@@ -16,19 +15,18 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
-import org.jetbrains.jps.model.module.JpsModuleSourceRootType;
 import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.regions.Regions;
@@ -40,14 +38,13 @@ import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.intellij.notification.NotificationType;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiElement;
 import com.openmind.intellij.bean.UploadConfig;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
@@ -162,11 +159,14 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private String execEcho(String systemVar) {
         try
         {
+            //NotificationHelper.showEvent(project, "trying execEcho on " + systemVar, NotificationType.ERROR);
             String[] cmdline = { "sh", "-c", "echo $" + systemVar };
             Process process = Runtime.getRuntime().exec(cmdline);
             process.waitFor();
             BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            return stdInput.readLine();
+            String s = stdInput.readLine();
+            //NotificationHelper.showEvent(project, "found: " + s, NotificationType.ERROR);
+            return s;
         }
         catch (IOException | InterruptedException e)
         {
@@ -219,8 +219,8 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         @NotNull UploadConfig uploadConfig) {
 
         // get file to really upload
-        final VirtualFile outputFiles = outputFileService.getOutputFile(module, originalFile);
-        if (outputFiles == null) {
+        final VirtualFile outputFile = outputFileService.getOutputFile(module, originalFile);
+        if (outputFile == null) {
             NotificationHelper.showEventAndBalloon(project, "File to upload not found", ERROR);
             return;
         }
@@ -247,11 +247,17 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         try {
             final String patchPath = getVersionsPath() + version + separator + getPatchPath();
             final String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadConfig);
-            final String deployPath = deployedProjectPath + outputFileService.getProjectRelativeDeployPath(originalFile);
+            final String deployPath = deployedProjectPath + outputFileService.getProjectRelativeDeployPath(module, originalFile);
+
+            // todo xheck timestamp andshow popup
+            LocalDateTime originalFileDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(originalFile.getModificationStamp()), ZoneId.systemDefault());
+            LocalDateTime outputFileDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(outputFile.getModificationStamp()), ZoneId.systemDefault());
+            NotificationHelper.showEventAndBalloon(project, "Original timestamp: " + originalFileDate + " VS " + outputFileDate, INFORMATION);
+            // id originalFileDate > outputFileDate...
 
             // upload file todo batch
-            List<VirtualFile> filesToUpload = Arrays.asList(outputFiles);
-            filesToUpload.addAll(outputFileService.findSubclasses(originalFile, outputFiles));
+            List<VirtualFile> filesToUpload = Lists.newArrayList(outputFile);
+            filesToUpload.addAll(outputFileService.findSubclasses(originalFile, outputFile));
             filesToUpload.forEach(o -> {
                 String fullS3FilePath = deployPath + o.getName();
                 s3Client.putObject(new PutObjectRequest(bucketName, fullS3FilePath, new File(o.getCanonicalPath())));

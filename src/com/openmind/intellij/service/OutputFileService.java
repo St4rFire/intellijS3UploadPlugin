@@ -9,6 +9,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.service.impl.OutputFileServiceImpl;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 
 public interface OutputFileService {
@@ -24,6 +25,6 @@ public interface OutputFileService {
     List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile);
 
     @NotNull
-    public abstract String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
+    public abstract String getProjectRelativeDeployPath(@Nullable Module module, @NotNull VirtualFile originalFile)
         throws IllegalArgumentException;
 }

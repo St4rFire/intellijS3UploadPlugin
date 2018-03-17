@@ -6,6 +6,8 @@ The only required configurations are the environment vars for S3 credentials:
   ${project.name}_AWS_SECRET_ACCESS_KEY
 ```
 
+launchctl setenv
+
 ## S3 bucket
 Default S3 folders structure can be changed by s3upload.properties in project root folder.  
 All following ${} are the available properties.

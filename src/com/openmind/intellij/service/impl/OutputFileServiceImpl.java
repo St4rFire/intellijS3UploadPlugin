@@ -1,6 +1,5 @@
 package com.openmind.intellij.service.impl;
 
-import static com.intellij.notification.NotificationType.ERROR;
 import static com.openmind.intellij.helper.FileHelper.COLON;
 import static com.openmind.intellij.helper.FileHelper.COMMA;
 import static com.openmind.intellij.helper.FileHelper.DOT;
@@ -26,10 +25,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.SystemIndependent;
 import org.jetbrains.jps.model.java.JavaModuleSourceRootTypes;
 
 import com.google.common.collect.ImmutableMap;
@@ -57,7 +58,7 @@ public class OutputFileServiceImpl implements OutputFileService {
     private static final String SUBCLASSES_KEY = "compiled.mapping.subclasses."; //java = $
 
     private static final ExtensionBehavior JAVA_BEHAVIOR = new ExtensionBehavior("class",
-        ImmutableMap.of("/src/main/java", "/target/classes", "/src/groovy", "/target/classes"), "$");
+        ImmutableMap.of("/src/main/java", "/target/classes", "/src/groovy", "/target/classes"), "$"); // todo src out nonserve +...
 
     private final HashMap<String, ExtensionBehavior> EXTENSIONS_BEHAVIOR = Maps.newHashMap(ImmutableMap.<String, ExtensionBehavior>builder()
         .put("java", JAVA_BEHAVIOR)
@@ -67,8 +68,8 @@ public class OutputFileServiceImpl implements OutputFileService {
 
     // src deploy path transformation - search custom mappings from source path to deploy path
     // todo usare classi idea?
-    private static final String FOLDERS_REMAPPING_KEY = "output.mapping.folder.";
-    private final HashMap<String,String> FOLDERS_REMAPPING =
+    private static final String DEPLOYED_FOLDERS_REMAPPING_KEY = "deployed.mapping.folder.";
+    private final HashMap<String,String> DEPLOYED_FOLDERS_REMAPPING =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
             .put("src/main/java",         "WEB-INF/classes")
             .put("src/main/resources",    "WEB-INF/classes")
@@ -81,7 +82,6 @@ public class OutputFileServiceImpl implements OutputFileService {
     private final Properties customProperties;
     private final List<String> modulesRoots; // todo usare come fallback?
     private final List<String> moduleSourceRoots;
-
 
 
     public OutputFileServiceImpl(@NotNull Project project) {
@@ -132,33 +132,9 @@ public class OutputFileServiceImpl implements OutputFileService {
             }
         });
 
-        FileHelper.updateConfigFromProperties(customProperties, FOLDERS_REMAPPING_KEY, FOLDERS_REMAPPING);
+        FileHelper.updateConfigFromProperties(customProperties, DEPLOYED_FOLDERS_REMAPPING_KEY, DEPLOYED_FOLDERS_REMAPPING);
     }
 
-    @Nullable
-    private String convertToOutputPath(Module module, String originalPath) {
-
-        if (module == null) {
-            return null;
-        }
-
-        // get output path
-        final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
-        NotificationHelper.showEvent(project, "getModuleOutputDirectory: " + moduleOutputPath, NotificationType.ERROR);
-
-        if (isNotEmpty(moduleOutputPath)) {
-
-            // get matching source path
-            Optional<String> sourceRoot = moduleSourceRoots.stream().filter(s -> startsWith(originalPath, s)).findFirst();
-            if (sourceRoot.isPresent()) {
-                NotificationHelper.showEvent(project, "sourceRoot: " + sourceRoot, NotificationType.ERROR);
-
-                // replace source path with output path
-                return moduleOutputPath + replaceOnce(originalPath, sourceRoot.get(), EMPTY);
-            }
-        }
-        return null;
-    }
 
     /**
      * Get compiled file if needed
@@ -180,7 +156,7 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         // try custom path conversion
         if (isEmpty(outputPath)) {
-            NotificationHelper.showEvent(project, "try custom path ", NotificationType.ERROR);
+            NotificationHelper.showEvent(project, "falling back to custom path ", NotificationType.ERROR);
             Optional<Map.Entry<String, String>> pathToReplace = extensionBehavior.getPathMappings().entrySet().stream()
                 .filter(m -> contains(originalPath, m.getKey())) // todo regex
                 .findFirst();
@@ -228,11 +204,9 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
         final String subclassesSeparator = extensionBehavior.getSubclassesSeparator();
         if (isNotEmpty(subclassesSeparator)) {
-            List<VirtualFile> allClasses = Arrays.asList(outputFile.getParent().getChildren()).stream()
+            return Stream.of(outputFile.getParent().getChildren())
                 .filter(f -> f.getName().startsWith(outputFile.getNameWithoutExtension() + subclassesSeparator))
                 .collect(Collectors.toList());
-            allClasses.add(outputFile);
-            return allClasses;
         }
         return Collections.emptyList();
     }
@@ -246,27 +220,95 @@ public class OutputFileServiceImpl implements OutputFileService {
      */
     @Override
     @NotNull
-    // project.getBasePath();
     // com.intellij.openapi.util.io.FileUtil.toCanonicalPath(java.lang.String)
-    public String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
+    public String getProjectRelativeDeployPath(@Nullable Module module, @NotNull VirtualFile originalFile)
         throws IllegalArgumentException {
 
+        String pathInProjectFolder = null;
+
+        // full path without file name
         String originalPath = substringBeforeLast(originalFile.getCanonicalPath(), separator);
         if (originalPath == null) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        //???????????
-        final String pathInProjectFolder = substringAfter(originalPath, project.getBasePath() + separator);
-        Optional<Map.Entry<String, String>> mapping = FOLDERS_REMAPPING.entrySet().stream()
-            .filter(e -> pathInProjectFolder.startsWith(e.getKey()))
+        // use compiled file clas1!! per goglio..per feltri rimuovo target/classe..ma questo è generico
+        // vedere cosa dice moduleOutputPath..no hasenso solo per compilati
+
+        // todo ok per feltrom mamanca WEB-INF/classes daventi
+        // ... base modulo + pezzo hce cambia + pezzo trovato dasource
+        // todo goglio /web/src -> webroot/WEB-INF patch/bin/custom/goglioweb/web/webroot
+        // search mapping in source folders
+//        Optional<String> moduleSource = getModuleSource(originalPath);
+//        if (moduleSource.isPresent()) {
+//            String pathInSourceFolder = substringAfter(originalPath, moduleSource.get() + separator);
+//            NotificationHelper.showEvent(project, "REMOVE pathInSourceFolder: " + pathInSourceFolder, NotificationType.ERROR);
+//            //return pathInSourceFolder + separator;
+//        }
+
+        if (module != null) {
+            String moduleFilePath = substringBeforeLast(module.getModuleFilePath(), separator);
+            NotificationHelper.showEvent(project, "REMOVE moduleFilePath: " + moduleFilePath, NotificationType.ERROR);
+            String pathInSourceFolder = substringAfter(originalPath, moduleFilePath + separator);
+            NotificationHelper.showEvent(project, "REMOVE pathInSourceFolder: " + pathInSourceFolder, NotificationType.ERROR);
+            if (isNotEmpty(pathInSourceFolder)) {
+                pathInProjectFolder = pathInSourceFolder;
+            }
+        }
+
+        // remove project path
+        if (isEmpty(pathInProjectFolder)) {
+            pathInProjectFolder = substringAfter(originalPath, project.getBasePath() + separator);
+            NotificationHelper.showEvent(project, "REMOVE pathInProjectFolder: " + pathInProjectFolder, NotificationType.ERROR);
+        }
+
+        if (isEmpty(pathInProjectFolder)) {
+            throw new IllegalArgumentException("Could not found project base for path " + originalPath);
+        }
+
+        // replace custom folders
+        final String detectedPath = pathInProjectFolder;
+        Optional<Map.Entry<String, String>> mapping = DEPLOYED_FOLDERS_REMAPPING.entrySet().stream()
+            .filter(e -> detectedPath.contains(e.getKey()))
             .findFirst();
 
         if (mapping.isPresent()) {
             return replaceOnce(pathInProjectFolder, mapping.get().getKey(), mapping.get().getValue()) + separator;
-
         }
+
+        // no changes
         return pathInProjectFolder + separator;
+    }
+
+
+    @Nullable
+    private String convertToOutputPath(Module module, String originalPath) {
+
+        if (module == null) {
+            return null;
+        }
+
+        // get output path
+        final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
+        NotificationHelper.showEvent(project, "REMOVE getModuleOutputDirectory: " + moduleOutputPath, NotificationType.ERROR);
+
+        if (isNotEmpty(moduleOutputPath)) {
+
+            // get matching source path
+            Optional<String> sourceRoot = getModuleSource(originalPath);
+            if (sourceRoot.isPresent()) {
+                NotificationHelper.showEvent(project, "REMOVE sourceRoot: " + sourceRoot, NotificationType.ERROR);
+
+                // replace source path with output path
+                return moduleOutputPath + replaceOnce(originalPath, sourceRoot.get(), EMPTY);
+            }
+        }
+        return null;
+    }
+
+    private Optional<String> getModuleSource(String originalPath)
+    {
+        return moduleSourceRoots.stream().filter(s -> startsWith(originalPath, s)).findFirst();
     }
 
 
