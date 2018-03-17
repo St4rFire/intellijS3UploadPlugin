@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -38,6 +39,7 @@ import com.google.common.collect.Maps;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.compiler.CompilerPaths;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.helper.FileHelper;
@@ -80,25 +82,30 @@ public class OutputFileServiceImpl implements OutputFileService {
 
     private final Project project;
     private final Properties customProperties;
-    private final List<String> modulesRoots; // todo usare come fallback?
+    //private final List<String> modulesRoots; // todo usare come fallback?
     private final List<String> moduleSourceRoots;
-
+    private final Map<String, Module> modulesByPath;
 
     public OutputFileServiceImpl(@NotNull Project project) {
 
         this.project = project;
 
         ProjectRootManager instance = ProjectRootManager.getInstance(project);
-        this.modulesRoots = Arrays.stream(instance.getContentRoots())
-            .map(v -> v.getCanonicalPath())
-            .sorted(Comparator.reverseOrder())
-            .collect(Collectors.toList());
+//        this.modulesRoots = Arrays.stream(instance.getContentRoots())
+//            .map(v -> v.getCanonicalPath())
+//            .sorted(Comparator.reverseOrder())
+//            .collect(Collectors.toList());
 
         // .../main/java and .../main/resources
         this.moduleSourceRoots = instance.getModuleSourceRoots(JavaModuleSourceRootTypes.PRODUCTION).stream()
             .map(v -> v.getCanonicalPath())
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
+
+
+        // laod modules
+        modulesByPath = Stream.of(ModuleManager.getInstance(project).getModules())
+                    .collect(Collectors.toMap(m -> getModulePath(m), Function.identity()));
 
         this.customProperties = getProjectProperties(project);
         customProperties.forEach((k,v) -> {
@@ -139,10 +146,10 @@ public class OutputFileServiceImpl implements OutputFileService {
     /**
      * Get compiled file if needed
      * @param originalFile
-     * @return null if not found
+     * @throws IllegalArgumentException is not found
      */
-    @Nullable
-    public VirtualFile getOutputFile(Module module, @NotNull VirtualFile originalFile) {
+    @NotNull
+    public VirtualFile getOutputFile(@NotNull VirtualFile originalFile) {
 
         final String originalExtension = originalFile.getExtension();
         final ExtensionBehavior extensionBehavior = getExtensionBehavior(originalExtension);
@@ -152,7 +159,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         final String originalPath = originalFile.getCanonicalPath();
 
         // try automatic module path conversion
-        String outputPath = convertToOutputPath(module, originalPath);
+        String outputPath = convertToOutputPath(originalPath);
 
         // try custom path conversion
         if (isEmpty(outputPath)) {
@@ -190,7 +197,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
 
         // unable to find file
-        return null;
+        throw new IllegalArgumentException("Unable to find file: " + outputPath);
     }
 
     @NotNull
@@ -221,7 +228,7 @@ public class OutputFileServiceImpl implements OutputFileService {
     @Override
     @NotNull
     // com.intellij.openapi.util.io.FileUtil.toCanonicalPath(java.lang.String)
-    public String getProjectRelativeDeployPath(@Nullable Module module, @NotNull VirtualFile originalFile)
+    public String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
         throws IllegalArgumentException {
 
         String pathInProjectFolder = null;
@@ -243,11 +250,13 @@ public class OutputFileServiceImpl implements OutputFileService {
 //        if (moduleSource.isPresent()) {
 //            String pathInSourceFolder = substringAfter(originalPath, moduleSource.get() + separator);
 //            NotificationHelper.showEvent(project, "REMOVE pathInSourceFolder: " + pathInSourceFolder, NotificationType.ERROR);
-//            //return pathInSourceFolder + separator;
+//            //return pathInSourceFolder;
 //        }
 
-        if (module != null) {
-            String moduleFilePath = substringBeforeLast(module.getModuleFilePath(), separator);
+        // get module
+        Optional<Module> module = getModule(originalPath);
+        if (module.isPresent()) {
+            String moduleFilePath = getModulePath(module.get());
             NotificationHelper.showEvent(project, "REMOVE moduleFilePath: " + moduleFilePath, NotificationType.ERROR);
             String pathInSourceFolder = substringAfter(originalPath, moduleFilePath + separator);
             NotificationHelper.showEvent(project, "REMOVE pathInSourceFolder: " + pathInSourceFolder, NotificationType.ERROR);
@@ -273,23 +282,34 @@ public class OutputFileServiceImpl implements OutputFileService {
             .findFirst();
 
         if (mapping.isPresent()) {
-            return replaceOnce(pathInProjectFolder, mapping.get().getKey(), mapping.get().getValue()) + separator;
+            return replaceOnce(pathInProjectFolder, mapping.get().getKey(), mapping.get().getValue());
         }
 
         // no changes
-        return pathInProjectFolder + separator;
+        return pathInProjectFolder;
     }
 
+    private Optional<Module> getModule(String path) {
+        return modulesByPath.entrySet().stream()
+            .filter(moduleByPath -> startsWith(path, moduleByPath.getKey()))
+            .map(moduleByPath -> moduleByPath.getValue())
+            .findFirst();
+    }
+
+    private String getModulePath(Module module) {
+        return substringBeforeLast(module.getModuleFilePath(), separator);
+    }
 
     @Nullable
-    private String convertToOutputPath(Module module, String originalPath) {
+    private String convertToOutputPath(@NotNull String originalPath) {
 
-        if (module == null) {
+        Optional<Module> module = getModule(originalPath);
+        if (module.isPresent()) {
             return null;
         }
 
         // get output path
-        final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
+        final String moduleOutputPath = CompilerPaths.getModuleOutputPath( module.get(), false );
         NotificationHelper.showEvent(project, "REMOVE getModuleOutputDirectory: " + moduleOutputPath, NotificationType.ERROR);
 
         if (isNotEmpty(moduleOutputPath)) {
@@ -313,7 +333,7 @@ public class OutputFileServiceImpl implements OutputFileService {
 
 
     @Nullable
-    private ExtensionBehavior getExtensionBehavior(@NotNull String key) {
+    private ExtensionBehavior getExtensionBehavior(@Nullable String key) {
         return EXTENSIONS_BEHAVIOR.get(key);
     }
 

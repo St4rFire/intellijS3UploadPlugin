@@ -12,18 +12,18 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.text.SimpleDateFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Stream;
 
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.util.CollectionUtils;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiJavaFile;
+import com.intellij.openapi.vfs.VirtualFileWithoutContent;
 
 
 public class FileHelper {
@@ -34,16 +34,40 @@ public class FileHelper {
     public static final String COMMA = ",";
     public static final String COLON = ":";
 
-    public static final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
-// DATE_FORMATTER.format(
-
     @NotNull
     public static long getLastModified(@NotNull VirtualFile virtualFile) {
         return new File(virtualFile.getCanonicalPath()).lastModified();
     }
 
+    public static boolean hasContent(@NotNull VirtualFile file) {
+        return !(file instanceof VirtualFileWithoutContent);
+    }
 
+    public static boolean canUploadFiles(@Nullable VirtualFile[] files) {
+        if (files == null || files.length == 0) {
+            return false;
+        }
+        return !Stream.of(files).anyMatch(f -> !hasContent(f));
+    }
 
+    public static void flattenAllChildren(VirtualFile[] virtualFiles, List<VirtualFile> files) {
+        if (virtualFiles == null) {
+            return;
+        }
+        for (VirtualFile child : virtualFiles) {
+            flattenAllChildren(child, files);
+        }
+    }
+
+    public static void flattenAllChildren(VirtualFile virtualFile, List<VirtualFile> files) {
+        if (virtualFile.isDirectory()) {
+            for (VirtualFile child : virtualFile.getChildren()) {
+                flattenAllChildren(child, files);
+            }
+        } else if (hasContent(virtualFile)) { // todo test link
+            files.add(virtualFile);
+        }
+    }
 
     /**
      * Read text from file

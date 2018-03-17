@@ -14,6 +14,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
+import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.helper.ScrollToFile;
 import com.openmind.intellij.service.OutputFileService;
@@ -30,23 +31,30 @@ public class ScrollToClassFileAction extends AnAction {
 
     /**
      * Start upload
-     * @param anActionEvent
+     * @param event
      */
-    public void actionPerformed(AnActionEvent anActionEvent) {
-        final Project project = anActionEvent.getData(PlatformDataKeys.PROJECT);
-        final Module module = anActionEvent.getData(LangDataKeys.MODULE);
-        final PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
+    public void actionPerformed(AnActionEvent event) {
+        final Project project = event.getData(PlatformDataKeys.PROJECT);
+        final Module module = event.getData(LangDataKeys.MODULE);
+        final PsiFile selectedFile = event.getData(PlatformDataKeys.PSI_FILE);
+
+        if (project == null || selectedFile == null || selectedFile.getVirtualFile() == null) {
+            NotificationHelper.showEvent(project, "Could not find any selected file!", NotificationType.ERROR);
+            return;
+        }
 
         // get compiled class
         OutputFileService outputFileService = ServiceManager.getService(project, OutputFileService.class);
-        VirtualFile compiledFile = outputFileService.getOutputFile(module, psiFile.getVirtualFile());
-
-        // scroll to file in navigator if found
-        if(compiledFile != null) {
+        try
+        {
+            VirtualFile compiledFile = outputFileService.getOutputFile(selectedFile.getVirtualFile());
             PsiFile fileManaged = PsiManager.getInstance(project).findFile(compiledFile);
-            ScrollToFile.scroll(project, fileManaged);
 
-        } else {
+            // scroll to file in navigator if found
+            ScrollToFile.scroll(project, fileManaged);
+        }
+        catch (Exception e)
+        {
             NotificationHelper.showEvent(project, ".class file not found!", NotificationType.ERROR);
         }
     }
@@ -54,16 +62,19 @@ public class ScrollToClassFileAction extends AnAction {
 
     /**
      * Handle action visibility, only if is a java file
-     * @param anActionEvent
+     * @param event
      */
     @Override
-    public void update(AnActionEvent anActionEvent) {
-        final Project project = anActionEvent.getData(CommonDataKeys.PROJECT);
+    public void update(AnActionEvent event) {
+        final Project project = event.getData(CommonDataKeys.PROJECT);
         if (project == null)
             return;
 
-        PsiFile psiFile = anActionEvent.getData(PlatformDataKeys.PSI_FILE);
-        anActionEvent.getPresentation().setEnabledAndVisible(psiFile != null && psiFile.getVirtualFile() != null
-            && !psiFile.getVirtualFile().isDirectory() && psiFile instanceof PsiJavaFile);
+        PsiFile psiFile = event.getData(PlatformDataKeys.PSI_FILE);
+        event.getPresentation().setEnabledAndVisible(
+            psiFile != null
+            && psiFile.getVirtualFile() != null
+            && !psiFile.getVirtualFile().isDirectory()
+            && psiFile instanceof PsiJavaFile);
     }
 }

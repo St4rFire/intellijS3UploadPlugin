@@ -19,12 +19,12 @@ public interface OutputFileService {
     }
 
     @NotNull
-    VirtualFile getOutputFile(Module module, @NotNull VirtualFile originalFile);
+    VirtualFile getOutputFile(@NotNull VirtualFile originalFile);
 
     @NotNull
     List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile);
 
     @NotNull
-    public abstract String getProjectRelativeDeployPath(@Nullable Module module, @NotNull VirtualFile originalFile)
+    public abstract String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
         throws IllegalArgumentException;
 }

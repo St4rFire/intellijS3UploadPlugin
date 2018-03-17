@@ -48,7 +48,7 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity {
             NotificationHelper.showEvent(project, "ready! Project: '" + amazonS3Service.getProjectName() + "'",
                 INFORMATION);
 
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             NotificationHelper.showEvent(project, "disabled! " + e.getMessage(), ERROR);
         }
 
