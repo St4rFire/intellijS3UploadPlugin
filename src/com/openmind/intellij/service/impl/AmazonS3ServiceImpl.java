@@ -44,6 +44,7 @@ import com.intellij.notification.NotificationType;
 import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.bean.UploadConfig;
 import com.openmind.intellij.helper.FileHelper;
@@ -249,11 +250,15 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
             final String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadConfig);
             final String deployPath = deployedProjectPath + outputFileService.getProjectRelativeDeployPath(module, originalFile);
 
-            // todo xheck timestamp andshow popup
-            LocalDateTime originalFileDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(originalFile.getModificationStamp()), ZoneId.systemDefault());
-            LocalDateTime outputFileDate = LocalDateTime.ofInstant(Instant.ofEpochMilli(outputFile.getModificationStamp()), ZoneId.systemDefault());
-            NotificationHelper.showEventAndBalloon(project, "Original timestamp: " + originalFileDate + " VS " + outputFileDate, INFORMATION);
-            // id originalFileDate > outputFileDate...
+            // check timestamp
+            long originalFileLastModified = FileHelper.getLastModified(originalFile);
+            long outputFileLastModified = FileHelper.getLastModified(outputFile);
+            if (originalFile != outputFile && originalFileLastModified > outputFileLastModified &&
+                Messages.showOkCancelDialog(project, "Compiled files are older than the source file. Continue anyway?",
+                    "Warning!", "OK", "Cancel", Messages.getInformationIcon()) != Messages.OK) {
+                NotificationHelper.showEventAndBalloon(project, "Deploy stopped", INFORMATION);
+                return;
+            }
 
             // upload file todo batch
             List<VirtualFile> filesToUpload = Lists.newArrayList(outputFile);

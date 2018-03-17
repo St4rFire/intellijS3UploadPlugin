@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Properties;
 
@@ -32,6 +33,16 @@ public class FileHelper {
     public static final String DOT = ".";
     public static final String COMMA = ",";
     public static final String COLON = ":";
+
+    public static final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+// DATE_FORMATTER.format(
+
+    @NotNull
+    public static long getLastModified(@NotNull VirtualFile virtualFile) {
+        return new File(virtualFile.getCanonicalPath()).lastModified();
+    }
+
+
 
 
     /**
