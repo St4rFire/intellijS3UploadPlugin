@@ -3,8 +3,10 @@ package com.openmind.intellij.helper;
 
 import static java.io.File.separator;
 import static org.apache.commons.lang.StringUtils.EMPTY;
+import static org.apache.commons.lang.StringUtils.isEmpty;
 import static org.apache.commons.lang.StringUtils.replaceOnce;
 import static org.apache.commons.lang.StringUtils.startsWith;
+import static org.apache.commons.lang3.StringUtils.endsWith;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -12,14 +14,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.springframework.util.CollectionUtils;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -91,14 +93,49 @@ public class FileHelper {
     }
 
 
-    public static void updateConfigFromProperties(@NotNull Properties properties, @NotNull String prefix,
-        @NotNull HashMap<String,String> config) {
+    public static void updateConfigMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
+        @NotNull Map<String,String> config) {
+        updateConfigMapFromProperties(properties, prefix, config, null);
+    }
+
+    public static void updateConfigMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
+        @NotNull Map<String,String> config, @Nullable Function<String, String> transformer) {
         properties.forEach((k,v) -> {
             if (startsWith(k.toString(), prefix)) {
-                config.put(replaceOnce(k.toString(), prefix, EMPTY), v.toString());
+                String key = replaceOnce(k.toString(), prefix, EMPTY);
+                String value = v.toString();
+                if (transformer != null) {
+                    key = transformer.apply(key);
+                    value = transformer.apply(value);
+                }
+                config.put(key, value);
             }
         });
     }
+
+    @NotNull
+    public static String forceNotStartingWithSeparator(@Nullable String string) {
+        if(isEmpty(string)) return EMPTY;
+        return startsWith(string, separator) ? string.substring(1) : string;
+    }
+
+    @NotNull
+    public static String forceStartingWithSeparator(@Nullable String string) {
+        if(isEmpty(string)) return separator;
+        return startsWith(string, separator) ? string : separator + string;
+    }
+
+    @NotNull
+    public static String forceEndingWithSeparator(@Nullable String string) {
+        if(isEmpty(string)) return separator;
+        return endsWith(string, separator) ? string : string + separator;
+    }
+
+    @NotNull
+    public static String ensureSeparators(@Nullable String string) {
+        return forceEndingWithSeparator(forceStartingWithSeparator(string));
+    }
+
 
     /**
      * Load file as Properties

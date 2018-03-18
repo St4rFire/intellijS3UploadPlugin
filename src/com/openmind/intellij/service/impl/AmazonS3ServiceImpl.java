@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.AmazonServiceException;
@@ -34,19 +33,16 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.transfer.MultipleFileUpload;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
-import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.openapi.components.ServiceManager;
-import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -83,9 +79,9 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private static final String VERSIONS_PATH_KEY = "versions.path";
     private static final String PATCH_PATH_KEY = "patch.path";
     private static final String DEPLOY_PATH_KEY = "deploy.path"; // relative to patch folder
+    private static final String FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY = "mapping.project.";
 
     // project recognition - custom mappings from config file suffix to deployed project
-    private static final String FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY = "s3.mapping.project.";
     private final HashMap<String,String> FROM_CONFIG_TO_DEPLOY_SUFFIX =
         Maps.newHashMap(ImmutableMap.<String, String>builder()
             .put("esb",         "esb")
@@ -113,7 +109,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     }
 
 
-    // todo list
     /**
      * Upload to S3
      * @param originalFiles
@@ -155,7 +150,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         // get files to really upload
         ListMultimap<String, VirtualFile> projectRelativePathTofiles = ArrayListMultimap.create();
         for (VirtualFile originalFile : originalFiles) {
-            final VirtualFile outputFile = outputFileService.getOutputFile(originalFile);
+            final VirtualFile outputFile = outputFileService.getCompiledOrOriginalFile(originalFile);
             final String projectRelativeDeployPath = outputFileService.getProjectRelativeDeployPath(originalFile);
 
             // check timestamp
@@ -181,20 +176,20 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
                 .map(v -> new File(v.getCanonicalPath()))
                 .collect(Collectors.toList());
 
+            String uploadedFiles = virtualFiles.stream()
+                .map(f -> fullS3DeployPath + separator + f.getName())
+                .collect(Collectors.joining(System.lineSeparator()));
+            String message = (uploadedFiles.isEmpty() ? EMPTY : System.lineSeparator()) + uploadedFiles;
+
             try {
                 TransferManager tx = TransferManagerBuilder.standard().withS3Client(s3Client).build();
                 MultipleFileUpload xfer = tx.uploadFileList(bucketName, fullS3DeployPath, filesToUpload.get(0).getParentFile(), filesToUpload);
                 xfer.waitForCompletion();
 
-                String uploadedFiles = virtualFiles.stream()
-                    .map(f -> fullS3DeployPath + separator + f.getName())
-                    .collect(Collectors.joining(System.lineSeparator()));
-
-                String message = (uploadedFiles.isEmpty() ? EMPTY : System.lineSeparator()) + uploadedFiles;
                 NotificationHelper.showEventAndBalloon(project, "Uploaded to: " + message, INFORMATION);
             } catch (InterruptedException | AmazonServiceException e) {
                 // to do custom exc
-                throw new IllegalArgumentException(e);
+                throw new IllegalArgumentException("Error: " + uploadedFiles + " while uploading: " + message);
             }
         });
     }
@@ -295,8 +290,9 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
                 .distinct()
                 .collect(Collectors.toList());
 
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Error " + ex.getMessage());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error: " + e.getMessage() + " while reading path: "
+                + bucketName + separator + patchPath);
         }
 
         if (CollectionUtils.isEmpty(projectsList)) {
@@ -318,7 +314,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
             deployedProjectName = matchingProject.get();
         }
 
-
         if (isEmpty(deployedProjectName)) {
             throw new IllegalArgumentException("Could not map suffix " + deployedProjectSuffix
                 + " to a deployed project in path: " + bucketName + separator + patchPath);
@@ -333,7 +328,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      */
     private Properties loadCustomProperties() {
         Properties customProperties = FileHelper.getProjectProperties(project);
-        FileHelper.updateConfigFromProperties(customProperties, FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY, FROM_CONFIG_TO_DEPLOY_SUFFIX);
+        FileHelper.updateConfigMapFromProperties(customProperties, FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY, FROM_CONFIG_TO_DEPLOY_SUFFIX);
         return customProperties;
     }
 

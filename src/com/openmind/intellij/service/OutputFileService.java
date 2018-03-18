@@ -19,7 +19,7 @@ public interface OutputFileService {
     }
 
     @NotNull
-    VirtualFile getOutputFile(@NotNull VirtualFile originalFile);
+    VirtualFile getCompiledOrOriginalFile(@NotNull VirtualFile originalFile);
 
     @NotNull
     List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile);
