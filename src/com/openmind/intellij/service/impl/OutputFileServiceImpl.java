@@ -311,7 +311,7 @@ public class OutputFileServiceImpl implements OutputFileService {
     private String automaticCompilePathConversion(@NotNull String originalPath) {
 
         Optional<Module> module = getModule(originalPath);
-        if (module.isPresent()) {
+        if (!module.isPresent()) {
             return null;
         }
 
