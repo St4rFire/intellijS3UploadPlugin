@@ -1,5 +1,10 @@
 package com.openmind.intellij.action;
 
+import static com.intellij.openapi.actionSystem.LangDataKeys.MODULE_CONTEXT_ARRAY;
+
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -45,7 +50,7 @@ public class ScrollToClassFileAction extends AnAction {
         OutputFileService outputFileService = ServiceManager.getService(project, OutputFileService.class);
         try
         {
-            VirtualFile compiledFile = outputFileService.getCompiledOrOriginalFile(selectedFile.getVirtualFile());
+            VirtualFile compiledFile = outputFileService.getCompiledOrOriginalFile(module, selectedFile.getVirtualFile());
             PsiFile fileManaged = PsiManager.getInstance(project).findFile(compiledFile);
 
             // scroll to file in navigator if found

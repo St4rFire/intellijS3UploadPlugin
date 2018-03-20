@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.AmazonServiceException;
@@ -43,6 +44,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.module.Module;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -111,14 +113,15 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
     /**
      * Upload to S3
+     * @param module
      * @param originalFiles
      * @param uploadConfig
      */
     @Override
-    public void uploadFiles(@NotNull List<VirtualFile> originalFiles, @NotNull UploadConfig uploadConfig) {
+    public void uploadFiles(@Nullable Module module, @NotNull List<VirtualFile> originalFiles, @NotNull UploadConfig uploadConfig) {
 
         try {
-            withS3Client((s3Client) -> uploadFile(s3Client, originalFiles, uploadConfig));
+            withS3Client((s3Client) -> uploadFile(s3Client, module, originalFiles, uploadConfig));
 
         } catch (Exception ex) {
             NotificationHelper.showEventAndBalloon(project, "Error uploading: " + ex.getMessage(), ERROR);
@@ -132,7 +135,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      * @param originalFiles
      * @param uploadConfig
      */
-    private void uploadFile(@NotNull AmazonS3 s3Client, @NotNull List<VirtualFile> originalFiles,
+    private void uploadFile(@NotNull AmazonS3 s3Client, @Nullable Module module, @NotNull List<VirtualFile> originalFiles,
         @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
 
         final String projectName = getProjectName();
@@ -150,7 +153,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         // get files to really upload
         ListMultimap<String, VirtualFile> projectRelativePathTofiles = ArrayListMultimap.create();
         for (VirtualFile originalFile : originalFiles) {
-            final VirtualFile outputFile = outputFileService.getCompiledOrOriginalFile(originalFile);
+            final VirtualFile outputFile = outputFileService.getCompiledOrOriginalFile(module, originalFile);
             final String projectRelativeDeployPath = outputFileService.getProjectRelativeDeployPath(originalFile);
 
             // check timestamp

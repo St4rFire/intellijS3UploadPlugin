@@ -24,5 +24,5 @@ public interface AmazonS3Service {
     @NotNull
     String getProjectName();
 
-    void uploadFiles(@NotNull List<VirtualFile> originalFiles, @NotNull UploadConfig uploadConfig);
+    void uploadFiles(@Nullable Module module, @NotNull List<VirtualFile> originalFiles, @NotNull UploadConfig uploadConfig);
 }

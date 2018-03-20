@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -59,59 +59,65 @@ public class OutputFileServiceImpl implements OutputFileService {
     private static final String COMPILE_MAPPING_SUBCLASSES_KEY = "compile.mapping.subclasses.";
 
     // paths to convert to deploy. Key suffix is extension. Eg: /path1 = /path2
-    private static final String DEPLOY_MAPPING_FOLDER_KEY = "deploy.mapping.folder.";
+    private static final String DEPLOY_PATH_MAPPINGS_KEY = "deploy.path.mappings.";
 
-    // keep searching for sourcepathwen deploying even after custom path conversion
-    private static final String DEPLOY_MAPPING_KEEP_SOURCE_PATH = "deploy.mapping.keep.source.path";
+    // deploy path starts after custom path conversion, otherwise the project root
+    private static final String DEPLOY_PATH_AFTER_CUSTOM_MAPPINGS = "deploy.path.after.custom.mappings";
 
     // compilation info
-//    private final CompiledBehavior SOURCE_TO_COMPILED = new CompiledBehavior("class", Maps.newLinkedHashMap(), "$");
-//    {
-//        // todo only auto
-//        SOURCE_TO_COMPILED.getPathMappings().put("/src/main/java/", "/target/classes/");
-//        SOURCE_TO_COMPILED.getPathMappings().put("/src/groovy/", "/target/classes/");
-//        SOURCE_TO_COMPILED.getPathMappings().put("/src/", "/webroot/WEB-INF/classes/"); //h
-//    }
-
     private final Map<String, CompiledBehavior> COMPILED_BEHAVIORS = Maps.newLinkedHashMap();
     {
-        COMPILED_BEHAVIORS.put("java", new CompiledBehavior("class", Maps.newLinkedHashMap(), "$"));
-        COMPILED_BEHAVIORS.put("groovy", new CompiledBehavior("class", Maps.newLinkedHashMap(), "$"));
+        COMPILED_BEHAVIORS.put("java", new CompiledBehavior("class", "$"));
+        COMPILED_BEHAVIORS.put("groovy", new CompiledBehavior("class", "$"));
     }
 
     // src deploy path transformation - search custom mappings from source path to deploy path
-
-    private final Map<String,String> DEPLOY_MAPPING_FOLDER = Maps.newLinkedHashMap();
+    private final Map<String,String> CUSTOM_DEPLOY_MAPPING = Maps.newLinkedHashMap();
     {
-        DEPLOY_MAPPING_FOLDER.put("/src/main/java/",       "/WEB-INF/classes/");
-        DEPLOY_MAPPING_FOLDER.put("/src/main/resources/",  "/WEB-INF/classes/");
-        DEPLOY_MAPPING_FOLDER.put("/src/main/webapp/",     "/");
-        //DEPLOY_MAPPING_FOLDER.put("/src/it/",              "/webroot/");
+        CUSTOM_DEPLOY_MAPPING.put("/src/main/java/",       "/WEB-INF/classes/");
+        CUSTOM_DEPLOY_MAPPING.put("/src/main/resources/",  "/WEB-INF/classes/");
+        CUSTOM_DEPLOY_MAPPING.put("/src/main/webapp/",     "/");
+        CUSTOM_DEPLOY_MAPPING.put("/src/it/",              "/webroot/"); // hybris
     }
 
 
     private final Project project;
     private final Properties customProperties;
+    private final List<String> moduleContentRoots; // 1 up from moduleSourceRoots
     private final List<String> moduleSourceRoots;
-    private final Map<String, Module> modulesByPath;
-    private final boolean keepProjectSources;
+    private final Module[] modules;
+    private final boolean deployPathAfterCustomMappings;
 
+    /**
+     * Setup
+     * @param project
+     */
     public OutputFileServiceImpl(@NotNull Project project) {
 
         this.project = project;
 
         ProjectRootManager instance = ProjectRootManager.getInstance(project);
 
-        // Eg: .../main/java and .../main/resources
+        // 1 up !!!! es hybris/bin/platform/ext/paymentstandard
+        moduleContentRoots = Arrays.stream(instance.getContentRoots())
+            .map(v -> v.getCanonicalPath())
+            .sorted(Comparator.reverseOrder())
+            .collect(Collectors.toList());
+        NotificationHelper.showEvent(project, "all moduleContentRoots "+ moduleContentRoots.stream().collect(Collectors.joining(System.lineSeparator())), NotificationType.ERROR);
+
+        // Eg: sourceroots .../main/java and .../main/resources
         this.moduleSourceRoots = instance.getModuleSourceRoots(JavaModuleSourceRootTypes.PRODUCTION).stream()
             .map(v -> v.getCanonicalPath())
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
+        NotificationHelper.showEvent(project, "all moduleSourceRoots "+ moduleSourceRoots.stream().collect(Collectors.joining(System.lineSeparator())), NotificationType.ERROR);
+
+        // laod modules---path nonvalikdi
+        this.modules = ModuleManager.getInstance(project).getModules();
+
+        NotificationHelper.showEvent(project, "ModuleManager.getInstance(project).getModules() "+ modules.length, NotificationType.ERROR);
 
 
-        // laod modules
-        modulesByPath = Stream.of(ModuleManager.getInstance(project).getModules())
-                    .collect(Collectors.toMap(m -> getModulePath(m), Function.identity(), (p1, p2) -> p1));
 
         // load properties
         this.customProperties = getProjectProperties(project);
@@ -146,20 +152,22 @@ public class OutputFileServiceImpl implements OutputFileService {
             }
         });
 
-        keepProjectSources = Boolean.valueOf(customProperties.getProperty(DEPLOY_MAPPING_KEEP_SOURCE_PATH, EMPTY));
-
-        FileHelper.updateConfigMapFromProperties(customProperties, DEPLOY_MAPPING_FOLDER_KEY, DEPLOY_MAPPING_FOLDER,
+        FileHelper.updateConfigMapFromProperties(customProperties, DEPLOY_PATH_MAPPINGS_KEY, CUSTOM_DEPLOY_MAPPING,
             FileHelper::ensureSeparators);
+
+        deployPathAfterCustomMappings = BooleanUtils.toBoolean(
+            defaultString(customProperties.getProperty(DEPLOY_PATH_AFTER_CUSTOM_MAPPINGS), Boolean.TRUE.toString()));
     }
 
 
     /**
-     * Get compiled file if needed
+     * Get compiled file or original
+     * @param module
      * @param originalFile
-     * @throws IllegalArgumentException is not found
+     * @throws IllegalArgumentException if compiled file should exists but it doesn't
      */
     @NotNull
-    public VirtualFile getCompiledOrOriginalFile(@NotNull VirtualFile originalFile) {
+    public VirtualFile getCompiledOrOriginalFile(@Nullable Module module, @NotNull VirtualFile originalFile) {
 
         // search behavior for specific extension
         final String originalExtension = originalFile.getExtension();
@@ -181,7 +189,7 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         // try automatic module path conversion
         if (isEmpty(outputPath)) {
-            outputPath = automaticCompilePathConversion(originalPath);
+            outputPath = automaticCompilePathConversion(module, originalFile);
         }
 
         // no conversion
@@ -247,94 +255,94 @@ public class OutputFileServiceImpl implements OutputFileService {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
 
-        // search custom source - output srcToDeploy
-        Optional<Map.Entry<String, String>> srcToDeploy = DEPLOY_MAPPING_FOLDER.entrySet().stream()
+
+        // search custom source - output mapping
+        String originalPathAfterCustomMapping = null;
+        Optional<Map.Entry<String, String>> customDeployMapping = CUSTOM_DEPLOY_MAPPING.entrySet().stream()
             .filter(e -> originalPath.contains(e.getKey()))
             .findFirst();
-
-
-        String originalPathAfterCustomMapping = null;
-        if (srcToDeploy.isPresent()) {
+        if (customDeployMapping.isPresent()) {
 
             // custom new path
-            String srcPath = srcToDeploy.get().getKey();
-            String deployPath = srcToDeploy.get().getValue();
+            String srcPath = customDeployMapping.get().getKey();
+            String deployPath = customDeployMapping.get().getValue();
             originalPathAfterCustomMapping = replaceOnce(originalPath, srcPath, deployPath);
 
             // keep only path after mapping
-            if (!keepProjectSources) {
-                NotificationHelper.showEventAndBalloon(project, "not keeping : " + originalPathAfterCustomMapping, INFORMATION);
-                return originalPathAfterCustomMapping.substring(originalPath.indexOf(srcPath) + 1);
+            if (deployPathAfterCustomMappings) {
+                NotificationHelper.showEventAndBalloon(project, "originalPathAfterCustomMapping : " + originalPathAfterCustomMapping, INFORMATION);
+                return originalPathAfterCustomMapping.substring(originalPath.indexOf(srcPath) + 1); //todo
             }
+        } else if (deployPathAfterCustomMappings) {
+            throw new IllegalArgumentException("No custom mapping found for " +originalPath);
         }
-
         originalPathAfterCustomMapping = defaultString(originalPathAfterCustomMapping, originalPath);
 
-        // remove module source path
-        String pathInProjectFolder = null;
-        Optional<String> sourceRoot = getModuleSource(originalPath);
-        if (sourceRoot.isPresent()) {
-            String moduleFilePath = sourceRoot.get();
-            String pathInSourceFolder = substringAfter(originalPathAfterCustomMapping, moduleFilePath + separator);
-            if (isNotEmpty(pathInSourceFolder)) {
-                pathInProjectFolder = pathInSourceFolder;
-            }
-        }
+        // deploy path after source path todo serve?
+//        String pathAfterSourceRoot = null;
+//        if (DEPLOY_PATH_AFTER_SOURCE_ROOT) {
+//            Optional<String> sourceRoot = getModuleSource(originalPath);
+//            if (sourceRoot.isPresent()) {
+//                pathAfterSourceRoot = substringAfter(originalPathAfterCustomMapping, sourceRoot.get() + separator);
+//            } else {
+//                throw new IllegalArgumentException("No sourceRoot found for " +originalPath);
+//            }
+//        }
+
 
         // remove project path
-        if (isEmpty(pathInProjectFolder)) {
-            pathInProjectFolder = substringAfter(originalPathAfterCustomMapping, project.getBasePath() + separator);
-        }
+        String pathInProjectFolder = substringAfter(originalPathAfterCustomMapping, project.getBasePath() + separator);
 
         if (isEmpty(pathInProjectFolder)) {
             throw new IllegalArgumentException("Could not found project base for path " + originalPath);
         }
 
-        // no changes
         return pathInProjectFolder;
     }
 
-    private Optional<Module> getModule(String path) {
-        NotificationHelper.showEvent(project, modulesByPath.keySet().stream().collect(Collectors.joining(System.lineSeparator())), NotificationType.ERROR);
-
-        return modulesByPath.entrySet().stream()
-            .filter(moduleByPath -> startsWith(path, moduleByPath.getKey()))
-            .map(moduleByPath -> moduleByPath.getValue())
-            .findFirst();
+    private Module getContainingModule(@NotNull VirtualFile originalFile) {
+        return Stream.of(modules).filter(m -> m.getModuleScope().accept(originalFile)).findFirst().orElse(null);
     }
 
-    private String getModulePath(Module module) {
-        return substringBeforeLast(module.getModuleFilePath(), separator);
-    }
 
     @Nullable
-    private String automaticCompilePathConversion(@NotNull String originalPath) {
+    private String automaticCompilePathConversion(@Nullable Module module, @NotNull VirtualFile originalFile) {
 
-        Optional<Module> module = getModule(originalPath);
-        if (!module.isPresent()) {
+        // if not provided try search
+        if (module == null) {
+            module = getContainingModule(originalFile);
+            NotificationHelper.showEvent(project, "event module null, tried auto find: " + module + ", originalPath" + originalFile.getCanonicalPath(),  NotificationType.ERROR);
+        }
+
+        if (module == null) {
             return null;
         }
 
-        // get output path
+        // get output path from module
         final String moduleOutputPath;
         try
         {
-            moduleOutputPath = CompilerPaths.getModuleOutputPath( module.get(), false );
+            moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
         }
         catch (Exception e)
         {
+            NotificationHelper.showEventAndBalloon(project, "Error retrieving Module OutputPath: " + e.getMessage(), NotificationType.ERROR);
             return null;
         }
 
+        NotificationHelper.showEvent(project, "found moduleOutputPath: " + moduleOutputPath, NotificationType.ERROR);
         if (isNotEmpty(moduleOutputPath)) {
 
             // get matching source path
+            final String originalPath = originalFile.getCanonicalPath();
             Optional<String> sourceRoot = getModuleSource(originalPath);
             if (sourceRoot.isPresent()) {
-                NotificationHelper.showEvent(project, "REMOVE sourceRoot: " + sourceRoot, NotificationType.ERROR);
+                NotificationHelper.showEvent(project, ".. and found  sourceRoot: " + sourceRoot, NotificationType.ERROR);
 
-                // replace source path with output path
+                // compile path = output path + originalPath without source root
                 return moduleOutputPath + replaceOnce(originalPath, sourceRoot.get(), EMPTY);
+            } else {
+                NotificationHelper.showEvent(project, " ... but not found sourceRoot for" + originalPath, NotificationType.ERROR);
             }
         }
         return null;
@@ -355,7 +363,7 @@ public class OutputFileServiceImpl implements OutputFileService {
     private CompiledBehavior getOrCreateExtensionBehavior(@NotNull String key) {
         CompiledBehavior extensionBehavior = COMPILED_BEHAVIORS.get(key);
         if (extensionBehavior == null) {
-            extensionBehavior = new CompiledBehavior();
+            extensionBehavior = new CompiledBehavior(key);
             COMPILED_BEHAVIORS.put(key, extensionBehavior);
         }
         return extensionBehavior;
@@ -366,19 +374,20 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         private String outputExtension;
 
-        private Map<String, String> pathMappings;
+        private final Map<String, String> pathMappings;
 
         private String subclassesSeparator;
 
 
-        public CompiledBehavior()
+        public CompiledBehavior(String outputExtension)
         {
+            this(outputExtension, null);
         }
 
-        public CompiledBehavior(String outputExtension, Map<String, String> pathMappings, String subclassesSeparator)
+        public CompiledBehavior(String outputExtension, String subclassesSeparator)
         {
             this.outputExtension = outputExtension;
-            this.pathMappings = pathMappings;
+            this.pathMappings = Maps.newLinkedHashMap();
             this.subclassesSeparator = subclassesSeparator;
         }
 

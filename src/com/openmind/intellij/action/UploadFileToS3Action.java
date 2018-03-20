@@ -1,6 +1,11 @@
 package com.openmind.intellij.action;
 
+import static com.intellij.openapi.actionSystem.LangDataKeys.MODULE_CONTEXT_ARRAY;
+
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -12,8 +17,12 @@ import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.actionSystem.LangDataKeys;
 import com.intellij.openapi.actionSystem.PlatformDataKeys;
+import com.intellij.openapi.compiler.CompilerPaths;
 import com.intellij.openapi.components.ServiceManager;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.bean.UploadConfig;
@@ -41,8 +50,12 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
      */
     public void actionPerformed(AnActionEvent event) {
         final Project project = event.getData(PlatformDataKeys.PROJECT);
+        final Module module = event.getData(LangDataKeys.MODULE);
         final VirtualFile[] files = event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
+        final Module[] data = LangDataKeys.MODULE_CONTEXT_ARRAY.getData(event.getDataContext());
+        NotificationHelper.showEvent(project, "event Module list " + data, NotificationType.ERROR);
 
+        // flatten files
         ArrayList<VirtualFile> allFiles = Lists.newArrayList();
         FileHelper.flattenAllChildren(files, allFiles);
 
@@ -50,8 +63,9 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
             NotificationHelper.showEvent(project, "Could not find any selected file!", NotificationType.ERROR);
         }
 
+        // upload
         AmazonS3Service amazonS3Service = ServiceManager.getService(project, AmazonS3Service.class);
-        amazonS3Service.uploadFiles(allFiles, uploadConfig);
+        amazonS3Service.uploadFiles(module, allFiles, uploadConfig);
     }
 
     /**
