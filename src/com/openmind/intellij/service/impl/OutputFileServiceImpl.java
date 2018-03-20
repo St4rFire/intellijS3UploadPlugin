@@ -90,10 +90,10 @@ public class OutputFileServiceImpl implements OutputFileService {
     private enum DeployPathStrategy {
 
         // deploy path starts at custom path conversion
-        BEFORE_CUSTOM_MAPPINGS,
+        FROM_CUSTOM_MAPPING,
 
         // deploy path starts at module names
-        BEFORE_MODULE_CONTENT_ROOT,
+        FROM_MODULE_NAME,
 
         // deploy path starts after custom path conversion
         AFTER_PROJECT_ROOT;
@@ -166,7 +166,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         String strategy = customProperties.getProperty(DEPLOY_PATH_STRATEGY);
         deployPathStrategy = isNotEmpty(strategy)
             ? DeployPathStrategy.valueOf(strategy)
-            : DeployPathStrategy.BEFORE_CUSTOM_MAPPINGS;
+            : DeployPathStrategy.FROM_CUSTOM_MAPPING;
     }
 
 
@@ -264,6 +264,9 @@ public class OutputFileServiceImpl implements OutputFileService {
         if (originalPath == null) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
+
+        NotificationHelper.showEventAndBalloon(project, "deployPathStrategy : " + deployPathStrategy, INFORMATION);
+
         // search custom source - output mapping
         String originalPathAfterCustomMapping = null;
         String srcPath = null;
@@ -280,7 +283,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
 
         // deploy path before custom mappings
-        if (deployPathStrategy == DeployPathStrategy.BEFORE_CUSTOM_MAPPINGS) {
+        if (deployPathStrategy == DeployPathStrategy.FROM_CUSTOM_MAPPING) {
             if (isNotEmpty(originalPathAfterCustomMapping)) {
                 NotificationHelper.showEventAndBalloon(project, "originalPathAfterCustomMapping : " + originalPathAfterCustomMapping, INFORMATION);
                 return originalPathAfterCustomMapping.substring(originalPathAfterCustomMapping.indexOf(deployPath) + 1);
@@ -293,10 +296,11 @@ public class OutputFileServiceImpl implements OutputFileService {
         originalPathAfterCustomMapping = defaultString(originalPathAfterCustomMapping, originalPath);
 
         // deploy path after content root - keep modules name
-        if (deployPathStrategy == DeployPathStrategy.BEFORE_MODULE_CONTENT_ROOT) {
+        if (deployPathStrategy == DeployPathStrategy.FROM_MODULE_NAME) {
             Optional<String> contentRoot = moduleContentRoots.stream().filter(r -> originalPath.contains(r)).findFirst();
             if (contentRoot.isPresent()) {
                 String beforeModuleName = substringBeforeLast(contentRoot.get(), separator);
+                NotificationHelper.showEventAndBalloon(project, "beforeModuleName : " + beforeModuleName, INFORMATION);
                 return replaceOnce(originalPathAfterCustomMapping, beforeModuleName + separator, EMPTY);
             } else {
                 throw new IllegalArgumentException("No sourceRoot found for " + originalPath);
