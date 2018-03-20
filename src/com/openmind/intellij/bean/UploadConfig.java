@@ -5,11 +5,12 @@ import org.apache.commons.lang.StringUtils;
 
 public class UploadConfig
 {
-    private String projectName;
-    private String fullFileName;
-    private String fileName;
-    private String subProjectName;
-    private boolean isProd;
+    private final String projectName;
+    private final String fullFileName;
+    private final String fileName;
+    private final String subProjectName;
+    private final boolean isProd;
+    private String version;
 
     public UploadConfig(String projectName, String versionFileName) {
         this.projectName = projectName;
@@ -42,5 +43,15 @@ public class UploadConfig
     public boolean isProd()
     {
         return isProd;
+    }
+
+    public String getVersion()
+    {
+        return version;
+    }
+
+    public void setVersion(String version)
+    {
+        this.version = version;
     }
 }

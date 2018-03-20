@@ -39,7 +39,7 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
     private UploadConfig uploadConfig;
 
     public UploadFileToS3Action(@NotNull UploadConfig uploadConfig){
-        super(uploadConfig.getFileName(), null, null);
+        super(uploadConfig.getFileName() + " (" + uploadConfig.getVersion() + ")", null, null);
         this.actionId = "S3UploadPlugin.UploadAction." + uploadConfig.getFileName();
         this.uploadConfig = uploadConfig;
     }

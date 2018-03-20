@@ -28,7 +28,6 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -61,8 +60,8 @@ public class OutputFileServiceImpl implements OutputFileService {
     // paths to convert to deploy. Key suffix is extension. Eg: /path1 = /path2
     private static final String DEPLOY_PATH_MAPPINGS_KEY = "deploy.path.mappings.";
 
-    // deploy path starts after custom path conversion, otherwise the project root
-    private static final String DEPLOY_PATH_AFTER_CUSTOM_MAPPINGS = "deploy.path.after.custom.mappings";
+    // deploy path resolution strategy
+    private static final String DEPLOY_PATH_STRATEGY = "deploy.path.strategy";
 
     // compilation info
     private final Map<String, CompiledBehavior> COMPILED_BEHAVIORS = Maps.newLinkedHashMap();
@@ -72,21 +71,33 @@ public class OutputFileServiceImpl implements OutputFileService {
     }
 
     // src deploy path transformation - search custom mappings from source path to deploy path
-    private final Map<String,String> CUSTOM_DEPLOY_MAPPING = Maps.newLinkedHashMap();
+    private final Map<String,String> DEFAULT_DEPLOY_MAPPING = Maps.newLinkedHashMap();
     {
-        CUSTOM_DEPLOY_MAPPING.put("/src/main/java/",       "/WEB-INF/classes/");
-        CUSTOM_DEPLOY_MAPPING.put("/src/main/resources/",  "/WEB-INF/classes/");
-        CUSTOM_DEPLOY_MAPPING.put("/src/main/webapp/",     "/");
-        CUSTOM_DEPLOY_MAPPING.put("/src/it/",              "/webroot/"); // hybris
+        DEFAULT_DEPLOY_MAPPING.put("/src/main/java/",       "/WEB-INF/classes/");
+        DEFAULT_DEPLOY_MAPPING.put("/src/main/resources/",  "/WEB-INF/classes/");
+        DEFAULT_DEPLOY_MAPPING.put("/src/main/webapp/",     "/");
     }
 
+    private final Map<String,String> CUSTOM_DEPLOY_MAPPINGS = Maps.newLinkedHashMap();
 
     private final Project project;
     private final Properties customProperties;
-    private final List<String> moduleContentRoots; // 1 up from moduleSourceRoots
+    private final List<String> moduleContentRoots;
     private final List<String> moduleSourceRoots;
     private final Module[] modules;
-    private final boolean deployPathAfterCustomMappings;
+    private final DeployPathStrategy deployPathStrategy;
+
+    private enum DeployPathStrategy {
+
+        // deploy path starts at custom path conversion
+        BEFORE_CUSTOM_MAPPINGS,
+
+        // deploy path starts at module names
+        BEFORE_MODULE_CONTENT_ROOT,
+
+        // deploy path starts after custom path conversion
+        AFTER_PROJECT_ROOT;
+    }
 
     /**
      * Setup
@@ -98,7 +109,7 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         ProjectRootManager instance = ProjectRootManager.getInstance(project);
 
-        // 1 up !!!! es hybris/bin/platform/ext/paymentstandard
+        // module names
         moduleContentRoots = Arrays.stream(instance.getContentRoots())
             .map(v -> v.getCanonicalPath())
             .sorted(Comparator.reverseOrder())
@@ -112,12 +123,8 @@ public class OutputFileServiceImpl implements OutputFileService {
             .collect(Collectors.toList());
         NotificationHelper.showEvent(project, "all moduleSourceRoots "+ moduleSourceRoots.stream().collect(Collectors.joining(System.lineSeparator())), NotificationType.ERROR);
 
-        // laod modules---path nonvalikdi
+        // laod module
         this.modules = ModuleManager.getInstance(project).getModules();
-
-        NotificationHelper.showEvent(project, "ModuleManager.getInstance(project).getModules() "+ modules.length, NotificationType.ERROR);
-
-
 
         // load properties
         this.customProperties = getProjectProperties(project);
@@ -152,11 +159,14 @@ public class OutputFileServiceImpl implements OutputFileService {
             }
         });
 
-        FileHelper.updateConfigMapFromProperties(customProperties, DEPLOY_PATH_MAPPINGS_KEY, CUSTOM_DEPLOY_MAPPING,
+        FileHelper.updateConfigMapFromProperties(customProperties, DEPLOY_PATH_MAPPINGS_KEY, CUSTOM_DEPLOY_MAPPINGS,
             FileHelper::ensureSeparators);
+        CUSTOM_DEPLOY_MAPPINGS.putAll(DEFAULT_DEPLOY_MAPPING);
 
-        deployPathAfterCustomMappings = BooleanUtils.toBoolean(
-            defaultString(customProperties.getProperty(DEPLOY_PATH_AFTER_CUSTOM_MAPPINGS), Boolean.TRUE.toString()));
+        String strategy = customProperties.getProperty(DEPLOY_PATH_STRATEGY);
+        deployPathStrategy = isNotEmpty(strategy)
+            ? DeployPathStrategy.valueOf(strategy)
+            : DeployPathStrategy.BEFORE_CUSTOM_MAPPINGS;
     }
 
 
@@ -254,50 +264,51 @@ public class OutputFileServiceImpl implements OutputFileService {
         if (originalPath == null) {
             throw new IllegalArgumentException("Could not get deploy originalPath");
         }
-
-
         // search custom source - output mapping
         String originalPathAfterCustomMapping = null;
-        Optional<Map.Entry<String, String>> customDeployMapping = CUSTOM_DEPLOY_MAPPING.entrySet().stream()
+        String srcPath = null;
+        String deployPath = null;
+        Optional<Map.Entry<String, String>> customDeployMapping = CUSTOM_DEPLOY_MAPPINGS.entrySet().stream()
             .filter(e -> originalPath.contains(e.getKey()))
             .findFirst();
         if (customDeployMapping.isPresent()) {
 
             // custom new path
-            String srcPath = customDeployMapping.get().getKey();
-            String deployPath = customDeployMapping.get().getValue();
+            srcPath = customDeployMapping.get().getKey();
+            deployPath = customDeployMapping.get().getValue();
             originalPathAfterCustomMapping = replaceOnce(originalPath, srcPath, deployPath);
-
-            // keep only path after mapping
-            if (deployPathAfterCustomMappings) {
-                NotificationHelper.showEventAndBalloon(project, "originalPathAfterCustomMapping : " + originalPathAfterCustomMapping, INFORMATION);
-                return originalPathAfterCustomMapping.substring(originalPath.indexOf(srcPath) + 1); //todo
-            }
-        } else if (deployPathAfterCustomMappings) {
-            throw new IllegalArgumentException("No custom mapping found for " +originalPath);
         }
+
+        // deploy path before custom mappings
+        if (deployPathStrategy == DeployPathStrategy.BEFORE_CUSTOM_MAPPINGS) {
+            if (isNotEmpty(originalPathAfterCustomMapping)) {
+                NotificationHelper.showEventAndBalloon(project, "originalPathAfterCustomMapping : " + originalPathAfterCustomMapping, INFORMATION);
+                return originalPathAfterCustomMapping.substring(originalPathAfterCustomMapping.indexOf(deployPath) + 1);
+
+            } else {
+                throw new IllegalArgumentException("No custom mapping found for " +originalPath);
+            }
+        }
+
         originalPathAfterCustomMapping = defaultString(originalPathAfterCustomMapping, originalPath);
 
-        // deploy path after source path todo serve?
-//        String pathAfterSourceRoot = null;
-//        if (DEPLOY_PATH_AFTER_SOURCE_ROOT) {
-//            Optional<String> sourceRoot = getModuleSource(originalPath);
-//            if (sourceRoot.isPresent()) {
-//                pathAfterSourceRoot = substringAfter(originalPathAfterCustomMapping, sourceRoot.get() + separator);
-//            } else {
-//                throw new IllegalArgumentException("No sourceRoot found for " +originalPath);
-//            }
-//        }
-
-
-        // remove project path
-        String pathInProjectFolder = substringAfter(originalPathAfterCustomMapping, project.getBasePath() + separator);
-
-        if (isEmpty(pathInProjectFolder)) {
-            throw new IllegalArgumentException("Could not found project base for path " + originalPath);
+        // deploy path after content root - keep modules name
+        if (deployPathStrategy == DeployPathStrategy.BEFORE_MODULE_CONTENT_ROOT) {
+            Optional<String> contentRoot = moduleContentRoots.stream().filter(r -> originalPath.contains(r)).findFirst();
+            if (contentRoot.isPresent()) {
+                String beforeModuleName = substringBeforeLast(contentRoot.get(), separator);
+                return replaceOnce(originalPathAfterCustomMapping, beforeModuleName + separator, EMPTY);
+            } else {
+                throw new IllegalArgumentException("No sourceRoot found for " + originalPath);
+            }
         }
 
-        return pathInProjectFolder;
+        // deploy path after project root
+        if (deployPathStrategy == DeployPathStrategy.AFTER_PROJECT_ROOT) {
+            return substringAfter(originalPathAfterCustomMapping, project.getBasePath() + separator);
+        }
+
+        throw new IllegalArgumentException("Could not found base path strategy for: " + originalPath);
     }
 
     private Module getContainingModule(@NotNull VirtualFile originalFile) {

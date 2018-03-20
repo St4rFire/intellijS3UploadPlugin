@@ -51,7 +51,6 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
                     }
                 }
 
-                LOGGER.info("test");
                 NotificationHelper.showEvent(project, "ready! Project: '" + amazonS3Service.getProjectName() + "'",
                     INFORMATION);
 

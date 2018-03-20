@@ -140,14 +140,12 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
         final String projectName = getProjectName();
         final String bucketName = getBucketName(projectName);
-        final String lastVersionsPath = getLastVersionsPath();
 
-        // get current project version from S3
-        final String versionFilePath = lastVersionsPath + uploadConfig.getFullFileName();
-        final String version = readS3FileFirstLine(s3Client, bucketName, versionFilePath, "Version file");
+        // update get current project version from S3
+        updateVersion(s3Client, uploadConfig, bucketName);
 
         // get deploy path
-        final String patchPath = getVersionsPath() + version + separator + getPatchPath();
+        final String patchPath = getVersionsPath() + uploadConfig.getVersion() + separator + getPatchPath();
         final String deployedProjectPath = getDeployedProjectPath(s3Client, bucketName, patchPath, uploadConfig);
 
         // get files to really upload
@@ -195,6 +193,20 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
                 throw new IllegalArgumentException("Error: " + uploadedFiles + " while uploading: " + message);
             }
         });
+    }
+
+    /**
+     * Update current version of upload config
+     * @param s3Client
+     * @param uploadConfig
+     * @param bucketName
+     */
+    @NotNull
+    private void updateVersion(@NotNull AmazonS3 s3Client, @NotNull UploadConfig uploadConfig, String bucketName)
+    {
+        final String versionFilePath = getLastVersionsPath() + uploadConfig.getFullFileName();
+        final String version = readS3FileFirstLine(s3Client, bucketName, versionFilePath, "Version file");
+        uploadConfig.setVersion(version);
     }
 
     /**
@@ -436,7 +448,11 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
                 uploadConfigs.addAll(listing.getObjectSummaries().stream()
                     .map(s -> replaceOnce(s.getKey(), lastVersionsPath, ""))
                     .filter(s -> !s.isEmpty())
-                    .map(versionFileName -> new UploadConfig(projectName, versionFileName))
+                    .map(versionFileName -> {
+                        UploadConfig uploadConfig = new UploadConfig(projectName, versionFileName);
+                        updateVersion(s3Client, uploadConfig, bucketName);
+                        return uploadConfig;
+                    })
                     .collect(Collectors.toList()));
             });
 
