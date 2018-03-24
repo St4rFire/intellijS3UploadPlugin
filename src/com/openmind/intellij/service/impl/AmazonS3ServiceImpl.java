@@ -39,7 +39,6 @@ import com.amazonaws.services.s3.transfer.MultipleFileUpload;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -66,7 +65,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private static final String AWS_PROPERTY_ACCESS_KEY = "aws.accessKeyId";
     private static final String AWS_PROPERTY_SECRET_ACCESS_KEY = "aws.secretKey";
     private static final String DEFAULT_REGION = "EU_WEST_1";
-    private static final String AWS_REGION = "aws.region";
 
     // path defaults
     private static final String S3_BUCKET_SUFFIX = "-releases";
@@ -75,6 +73,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private static final String PATCH_PATH = "patch";
 
     // keys in custom properties file
+    private static final String S3_REGION = "aws.region";
     private static final String S3_BUCKET_KEY = "bucket.name";
     private static final String PROJECT_NAME = "project.name";
     private static final String LAST_VERSIONS_PATH_KEY = "last.versions.path";
@@ -83,13 +82,13 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private static final String DEPLOY_PATH_KEY = "deploy.path"; // relative to patch folder
     private static final String FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY = "mapping.project.";
 
-    // project recognition - custom mappings from config file suffix to deployed project
-    private final HashMap<String,String> FROM_CONFIG_TO_DEPLOY_SUFFIX =
-        Maps.newHashMap(ImmutableMap.<String, String>builder()
-            .put("esb",         "esb")
-            .put("magnolia",    "webapp")
-            .put("hybris",      "todo")
-            .build());
+    // project recognition: custom mappings from config file suffix to deployed project
+    private final HashMap<String,String> FROM_CONFIG_TO_DEPLOY_SUFFIX = Maps.newLinkedHashMap();
+    {
+        FROM_CONFIG_TO_DEPLOY_SUFFIX.put("esb", "esb");
+        FROM_CONFIG_TO_DEPLOY_SUFFIX.put("magnolia", "webapp");
+        FROM_CONFIG_TO_DEPLOY_SUFFIX.put("hybris", "todo");
+    }
 
     private final Project project;
     private final Properties customProperties;
@@ -104,12 +103,14 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      */
     public AmazonS3ServiceImpl(@NotNull Project project) throws IllegalArgumentException {
         this.project = project;
+
+        // rispsota alla fine
+        this.outputFileService = ServiceManager.getService(project, OutputFileService.class);
+
         this.customProperties = loadCustomProperties();
         checkSystemVars();
         this.uploadConfigs = loadUploadConfigs();
-        this.outputFileService = ServiceManager.getService(project, OutputFileService.class);
     }
-
 
     /**
      * Upload to S3
@@ -170,7 +171,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         }
 
         // upload files
-        // https://aws.amazon.com/blogs/developer/amazon-s3-transfermanager/
         projectRelativePathTofiles.asMap().forEach((projectRelativeDeployPath, virtualFiles) -> {
             final String fullS3DeployPath = deployedProjectPath + projectRelativeDeployPath;
             List<File> filesToUpload = virtualFiles.stream()
@@ -255,16 +255,16 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         @NotNull String versionFilePath, @NotNull String fileDescription)
     {
 
-        final S3Object versionS3object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
-        if (versionS3object == null || versionS3object.getObjectContent() == null) {
+        final S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
+        if (s3Object == null || s3Object.getObjectContent() == null) {
             throw new IllegalArgumentException(fileDescription + " not found, searched: " + versionFilePath);
         }
 
-        final String version = FileHelper.getFirstLineFromFile(versionS3object.getObjectContent());
-        if (StringUtils.isEmpty(version)) {
+        final String value = FileHelper.getFirstLineFromFile(s3Object.getObjectContent());
+        if (StringUtils.isEmpty(value)) {
             throw new IllegalArgumentException(fileDescription+ " is empty, searched: " + versionFilePath);
         }
-        return version;
+        return value;
     }
 
 
@@ -278,7 +278,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      * @return
      * @throws IllegalArgumentException
      */
-    // todo FileUtilRt.toSystemIndependentName(
     @NotNull
     private String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
         @NotNull String patchPath, @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
@@ -343,7 +342,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      */
     private Properties loadCustomProperties() {
         Properties customProperties = FileHelper.getProjectProperties(project);
-        FileHelper.updateConfigMapFromProperties(customProperties, FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY, FROM_CONFIG_TO_DEPLOY_SUFFIX);
+        FileHelper.populateMapFromProperties(customProperties, FROM_CONFIG_TO_DEPLOY_SUFFIX_KEY, FROM_CONFIG_TO_DEPLOY_SUFFIX);
         return customProperties;
     }
 
@@ -358,7 +357,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         String secretValue = getProjectSystemEnvValue(projectSecret);
 
         if (isEmpty(keyValue) || isEmpty(secretValue)) {
-            throw new IllegalArgumentException("System Variable " + projectKey + " or " + projectSecret + " not found");
+            throw new IllegalArgumentException("System Variables starting with " + addProjectPrefix(EMPTY) + "not found");
         }
     }
 
@@ -387,7 +386,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
             System.setProperty(AWS_PROPERTY_SECRET_ACCESS_KEY, getProjectSystemEnvValue(projectAwsSecretAccessKey));
 
             // build client
-            String region = customProperties.getProperty(AWS_REGION, DEFAULT_REGION);
+            String region = customProperties.getProperty(S3_REGION, DEFAULT_REGION);
             final AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
                 .withRegion(Regions.valueOf(region))
                 .build();
@@ -396,7 +395,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
         } finally {
 
-            // replace existing values
+            // reinsert existing values
             if (isNotEmpty(existingAwsKey)) {
                 System.setProperty(AWS_PROPERTY_ACCESS_KEY, existingAwsKey);
             }

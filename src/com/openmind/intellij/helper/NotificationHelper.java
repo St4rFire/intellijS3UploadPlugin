@@ -62,8 +62,6 @@ public class NotificationHelper
                     TimeUnit.SECONDS.toMillis(10)
                 );
             }
-
-            // Messages.showInfoMessage(NOTIFICATION_TITLE, NOTIFICATION_TITLE);
         });
     }
 }

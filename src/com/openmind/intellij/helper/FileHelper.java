@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -93,22 +94,30 @@ public class FileHelper {
     }
 
 
-    public static void updateConfigMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
+    public static void populateMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
         @NotNull Map<String,String> config) {
-        updateConfigMapFromProperties(properties, prefix, config, null);
+        populateMapFromProperties(properties, prefix, config, null);
     }
 
-    public static void updateConfigMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
-        @NotNull Map<String,String> config, @Nullable Function<String, String> transformer) {
+    /**
+     * Insert properties starting with prefix into a Map
+     * @param properties
+     * @param prefix
+     * @param map
+     * @param transformer
+     */
+    public static void populateMapFromProperties(@NotNull Properties properties, @NotNull String prefix,
+        @NotNull Map<String,String> map, @Nullable Function<String, String> transformer) {
         properties.forEach((k,v) -> {
-            if (startsWith(k.toString(), prefix)) {
-                String key = replaceOnce(k.toString(), prefix, EMPTY);
-                String value = v.toString();
+            String key = Objects.toString(k);
+            if (startsWith(key, prefix)) {
+                key = replaceOnce(key, prefix, EMPTY);
+                String value = Objects.toString(v);
                 if (transformer != null) {
                     key = transformer.apply(key);
                     value = transformer.apply(value);
                 }
-                config.put(key, value);
+                map.put(key, value);
             }
         });
     }
@@ -126,14 +135,14 @@ public class FileHelper {
     }
 
     @NotNull
-    public static String forceEndingWithSeparator(@Nullable String string) {
-        if(isEmpty(string)) return separator;
+    public static String forceEndingWithSeparator(@Nullable String string, boolean keepEmpty) {
+        if(isEmpty(string)) return keepEmpty ? EMPTY : separator;
         return endsWith(string, separator) ? string : string + separator;
     }
 
     @NotNull
     public static String ensureSeparators(@Nullable String string) {
-        return forceEndingWithSeparator(forceStartingWithSeparator(string));
+        return forceEndingWithSeparator(forceStartingWithSeparator(string), false);
     }
 
 
@@ -151,7 +160,7 @@ public class FileHelper {
                 prop.load(new FileInputStream(file));
 
             } catch (IOException e) {
-                e.printStackTrace();
+                throw new IllegalArgumentException("Could not read custom properties file", e);
             }
         }
         return prop;

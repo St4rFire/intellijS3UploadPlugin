@@ -20,38 +20,31 @@ public class UploadConfig
         this.isProd = this.fileName.startsWith("pro");
     }
 
-    public String getProjectName()
-    {
+    public String getProjectName() {
         return projectName;
     }
 
-    public String getFullFileName()
-    {
+    public String getFullFileName() {
         return fullFileName;
     }
 
-    public String getFileName()
-    {
+    public String getFileName() {
         return fileName;
     }
 
-    public String getSubProjectName()
-    {
+    public String getSubProjectName() {
         return subProjectName;
     }
 
-    public boolean isProd()
-    {
+    public boolean isProd() {
         return isProd;
     }
 
-    public String getVersion()
-    {
+    public String getVersion() {
         return version;
     }
 
-    public void setVersion(String version)
-    {
+    public void setVersion(String version) {
         this.version = version;
     }
 }

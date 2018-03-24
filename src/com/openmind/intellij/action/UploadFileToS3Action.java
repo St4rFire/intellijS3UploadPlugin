@@ -90,14 +90,12 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
     }
 
     @NotNull
-    public String getActionId()
-    {
+    public String getActionId() {
         return actionId;
     }
 
     @Override
-    public void dispose()
-    {
+    public void dispose() {
         ActionManager.getInstance().unregisterAction(actionId);
         uploadConfig = null;
     }

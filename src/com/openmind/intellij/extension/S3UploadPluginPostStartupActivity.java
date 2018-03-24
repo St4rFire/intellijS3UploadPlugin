@@ -19,33 +19,33 @@ import com.openmind.intellij.service.AmazonS3Service;
 
 
 /**
- * Setup on editor startup
+ * Setup on ide startup
  */
 public class S3UploadPluginPostStartupActivity implements StartupActivity
 {
     private static final Logger LOGGER = Logger.getInstance(S3UploadPluginPostStartupActivity.class);
 
+    private static final String UPLOAD_MENU_GROUP = "S3UploadPlugin.Menu";
+
     public void runActivity(@NotNull Project project) {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
 
             ActionManager am = ActionManager.getInstance();
-            DefaultActionGroup group = (DefaultActionGroup) am.getAction("S3UploadPlugin.Menu");
-            if (group == null)
-            {
+            DefaultActionGroup group = (DefaultActionGroup) am.getAction(UPLOAD_MENU_GROUP);
+            if (group == null) {
                 return;
             }
 
-            try
-            {
+            try {
+
                 // setup S3 service
                 AmazonS3Service amazonS3Service = ServiceManager.getService(project, AmazonS3Service.class);
 
-                // add actions dynamically
-                for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs())
-                {
+                // add actions
+                for (UploadConfig uploadConfig : amazonS3Service.getUploadConfigs()) {
+
                     UploadFileToS3Action action = new UploadFileToS3Action(uploadConfig);
-                    if (am.getAction(action.getActionId()) == null)
-                    {
+                    if (am.getAction(action.getActionId()) == null) {
                         am.registerAction(action.getActionId(), action);
                         group.add(action);
                     }
@@ -54,11 +54,10 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
                 NotificationHelper.showEvent(project, "ready! Project: '" + amazonS3Service.getProjectName() + "'",
                     INFORMATION);
 
-            }
-            catch (Exception e)
-            {
+            } catch (Exception e) {
+
                 LOGGER.error(e);
-                NotificationHelper.showEvent(project, "disabled! Error: " + e.getMessage(), ERROR);
+                NotificationHelper.showEvent(project, "disabled: " + e.getMessage(), ERROR);
             }
         });
     }

@@ -25,6 +25,6 @@ public interface OutputFileService {
     List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile);
 
     @NotNull
-    public abstract String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
+    String getProjectRelativeDeployPath(@NotNull VirtualFile originalFile)
         throws IllegalArgumentException;
 }

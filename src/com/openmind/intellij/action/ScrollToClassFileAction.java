@@ -48,16 +48,14 @@ public class ScrollToClassFileAction extends AnAction {
 
         // get compiled class
         OutputFileService outputFileService = ServiceManager.getService(project, OutputFileService.class);
-        try
-        {
+        try {
             VirtualFile compiledFile = outputFileService.getCompiledOrOriginalFile(module, selectedFile.getVirtualFile());
             PsiFile fileManaged = PsiManager.getInstance(project).findFile(compiledFile);
 
             // scroll to file in navigator if found
             ScrollToFile.scroll(project, fileManaged);
-        }
-        catch (Exception e)
-        {
+
+        } catch (Exception e) {
             NotificationHelper.showEvent(project, ".class file not found!", NotificationType.ERROR);
         }
     }
