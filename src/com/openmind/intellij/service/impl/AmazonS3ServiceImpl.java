@@ -282,13 +282,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     private String getDeployedProjectPath(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
         @NotNull String patchPath, @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
 
-        // custom deploy path
-        String deployedProjectName = customProperties.getProperty(DEPLOY_PATH_KEY);
-        if (deployedProjectName != null) {
-            return patchPath + deployedProjectName
-                + (isNotEmpty(deployedProjectName) ? separator : EMPTY);
-        }
-
         // get deployed project suffix from the one in configs
         final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.get(uploadConfig.getSubProjectName());
 
@@ -325,15 +318,11 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
             .findFirst();
 
         if (matchingProject.isPresent()) {
-            deployedProjectName = matchingProject.get();
+            return  patchPath + matchingProject.get() + separator;
         }
 
-        if (isEmpty(deployedProjectName)) {
-            throw new IllegalArgumentException("Could not map suffix " + deployedProjectSuffix
+        throw new IllegalArgumentException("Could not map suffix " + deployedProjectSuffix
                 + " to a deployed project in path: " + bucketName + separator + patchPath);
-        }
-
-        return patchPath + deployedProjectName + separator;
     }
 
 

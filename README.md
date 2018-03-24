@@ -1,105 +1,153 @@
 # IntelliJ IDEA S3 Upload Plugin
 
-## How to use
+## Plugin description
+The main purpose of this plugin is to easily patch files from the local project to the one deployed on Amazon S3.  
+In the context menu the action "Upload to S3" will appear. It will display a submenu of available projects and versions automatically retrieved from S3.
+The "Scroll to .class" action will be added too.
 
+S3 credentials need to be configured as described below. No further configurations are required for the standard folder structure.  
+Compiled files will be automatically uploaded instead of the source code.  
+The upload of folders or multiple selected files is supported.
 
+## S3 standard folder structure example
 
-## S3 bucket
-Default S3 folders structure can be changed by s3upload.properties in project root folder.  
-All following ${} are the available properties.
-
-The project name is automatically inferred from the project, but can be overridden with the property:
+A .txt file will describe the projects name and versions:
 ```
-project.name
+{bucket.name}/last/uat-myWEBproject.txt (containing current version: 12.3.5)
+{bucket.name}/last/pro-myWEBproject.txt (containing current production version: 12.3.0)
+{bucket.name}/last/uat-myESBproject.txt (containing current production version: 3.3.0)
+...
+```
+The projects path will be:
+```
+{bucket.name}/versions/12.3.5/patch/.*-myWEBproject/
+{bucket.name}/versions/12.3.0/patch/.*-myWEBproject/
+{bucket.name}/versions/3.3.0/patch/.*-myESBproject/
+```
+The full .*-project name is retrieved from .txt suffix automatically. If only one project exists, the folder is skipped.
+ 
+
+## S3 credentials
+
+
+
+## S3 Bucket and custom properties
+
+The default bucket name is **{project.name}-releases**.  
+The project name is inferred from the Intellij project name, but it can be overridden with the property:
+```
+project.name = myProject
 ```
 
-Bucket name is ${project.name}-releases. It can be configured with the property:
+To completely override the bucket name you can use:
 ```
-bucket.name
+bucket.name = myBucket
 ```
+
 
 ## S3 upload configs
-Available projects and relative versions are read from existing files in:
+Deployed projects and relative versions are read from .txt files in:
 ```
-${bucket.name}/${last.versions.path}
+{bucket.name}/{last.versions.path}/
 ```
 
-From these files will be retrieved:
- - the current version: from file first line.
- - the project to deploy: from file name suffix. 
+Those files suffix is the project name. Eg:
+```
+uat-myWEBproject.txt
+```
+
+The file content is the current project version. Eg:
+```
+12.3.5
+```
  
-Eg: pro-esb.txt containing 12.3.4 will search a project ending with "esb" in deploy folder, version 12.3.4
- 
+These info will appear in the context menu
+  
+  
 ## S3 deploy path
  
-The deploy path is:  
+This is the deployed project path.   
+Supposing that the selected version is 12.3.5, the deploy path is:  
 ```
-${bucket.name}/${versions.path}/versionReadFromVersionFile/${patch.path}/  
+{bucket.name}/{versions.path}/12.3.5/{patch.path}/  
 ```
 
 Defaults are:  
 ```
-${project.name}-releases/versions/versionReadFromVersionFile/patch/  
+versions.path = versions
+patch.path = patch  
 ```
 
-## Mapping the deployed project 
-
-The suffix of folders in "versions.path" will be matched with the "last.versions.path" suffix.  
-Default mappings are:
+So it would be:
 ```
-"esb"      -> "esb"
-"magnolia" -> "webapp"
-"hybris"   -> "todo"
- ```
-Note: deploy folder will be skipped if only one project exists.
+{bucket.name}/versions/12.3.5/patch/  
+```
+
+## Deployed projects
+
+The project to patch will be the one matching the suffix read from .txt file.  
+Note: the deploy folder will be skipped if only one project exists.
 
 Custom mappings can be defined with the "mapping.project." prefix:
 ```
-mapping.project.example1 = example2
+mapping.project.suffixOfTxtFile = suffixOfDeployedProject
 ```
 
-## Mapping the folders inside the project 
+## Output path (path conversions)
 
-Folders that change path when deployed can be configured.
-Default mappings are:
+Paths can be different from the local ones in the deployed project.  
+Default mappings follow the maven war plugin:
 ```
-"/src/main/java/"      -> "/WEB-INF/classes/"
-"/src/main/resources/" -> "/WEB-INF/classes/"
-"/src/main/webapp/"   -> "/"
+/src/main/java/      -> /WEB-INF/classes/
+/src/main/resources/ -> /WEB-INF/classes/
+/src/main/webapp/    -> /
  ```
  
+  
 Custom mappings can be defined with:
 ```
-deploy.mapping.folder./pathA/ = /pathB/
+deploy.mapping.folder./pathLocal/ = /pathDeployed/
+deploy.mapping.folder./a/b/ = / (skip those folders)
 ```
 
-The path inside the deployed project folder will start after the found custom mapping by default.
-It will start from module source path if no custom mapping is found or the following key is true:
+If the file to upload is detected to be in an unmapped source folder, the source path will be replaced with the default path automatically.
+The default output path is "/WEB-INF/classes/", but can be changed with the property: 
 ```
-deploy.mapping.keep.source.path = true
-```
-
-
-## Mapping compiled files 
-
-This is how a file is mapped to its compiled ones. 
-Java and groovy are already configured. Eg:
-```
-compile.mapping.extension.java = class
-compile.mapping.subclasses.java = $
-compile.mapping.path.java = /src/main/java:/target/classes,/path3:/path4
+deploy.source.output = /custompath/
  ```
- 
-
-## Es:
-Upload config:
-```
-${project.name}-releases/last/pro-magnolia.txt containing 12.3.5 
-```
-will upload to:
-```
-${project.name}-releases/versions/12.3.5/patch/(.*-webapp)?/
-```
-The full .*-webapp name is retrieved from s3 automatically. If only one project exists, it is skipped.
 
 
+## Root path 
+
+This affects the path relative to the deployed project root.  
+The default behaviour is to truncate the path at the beginning of the output path, but it can be changed with the property:
+```
+deploy.auto.source.mapping = ...
+```
+
+Depending on the chosen strategy, the path relative to the project folder will differ.  Consider the following local path:
+```
+anyPath/myProject/anyFolders/myModule/src/main/java/com/example/JavaFile.java
+```
+
+##### FROM_MAPPINGS
+Starts from custom mapping transformation, exception if not found. Deployed path:  
+/WEB-INF/classes/com/example/JavaFile.class
+
+##### FROM_SOURCES (default)
+Starts from custom mapping transformation or auto source transformation, exception if not found. Deployed path:     
+/WEB-INF/classes/com/example/JavaFile.class
+
+##### FROM_MODULE_NAME
+Starts from module name (included). Deployed path:  
+/myModule/WEB-INF/classes/com/example/JavaFile.class
+
+##### AFTER_PROJECT_ROOT
+Basically keep all folders. Deployed path:
+/anyFolders/myModule/WEB-INF/classes/com/example/JavaFile.class
+
+<br/>
+To add a custom path before the calculated Root path, use:
+```
+deploy.path.prefix = /rootFoldersInDeployedProject
+```
