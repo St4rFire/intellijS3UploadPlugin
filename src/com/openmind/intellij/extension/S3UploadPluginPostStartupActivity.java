@@ -2,7 +2,12 @@ package com.openmind.intellij.extension;
 
 import static com.intellij.notification.NotificationType.ERROR;
 import static com.intellij.notification.NotificationType.INFORMATION;
+import static com.openmind.intellij.helper.FileHelper.STARTUP_MESSAGE_KEY;
+import static com.openmind.intellij.helper.FileHelper.STARTUP_TITLE_KEY;
 
+import java.util.Properties;
+
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import com.intellij.openapi.actionSystem.ActionManager;
@@ -14,6 +19,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.openmind.intellij.action.UploadFileToS3Action;
 import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.AmazonS3Service;
 
@@ -58,6 +64,14 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
 
                 LOGGER.error(e);
                 NotificationHelper.showEvent(project, "disabled: " + e.getMessage(), INFORMATION);
+            }
+
+            // Custom message
+            Properties customProperties = FileHelper.getProjectProperties(project);
+            String startupMessage = customProperties.getProperty(STARTUP_MESSAGE_KEY);
+            String startupTitle = customProperties.getProperty(STARTUP_TITLE_KEY);
+            if (StringUtils.isNotEmpty(startupMessage)) {
+                NotificationHelper.show(project, startupMessage, INFORMATION, true, startupTitle);
             }
         });
     }

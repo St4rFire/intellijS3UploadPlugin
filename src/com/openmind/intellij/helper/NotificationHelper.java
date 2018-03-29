@@ -2,7 +2,9 @@ package com.openmind.intellij.helper;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationGroup;
@@ -29,7 +31,7 @@ public class NotificationHelper
      * @param notificationType
      */
     public static void showEventAndBalloon(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType) {
-        show(project, html, notificationType, true);
+        show(project, html, notificationType, true, null);
     }
 
     /**
@@ -39,7 +41,7 @@ public class NotificationHelper
      * @param notificationType
      */
     public static void showEvent(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType) {
-        show(project, html, notificationType, false);
+        show(project, html, notificationType, false, null);
     }
 
     /**
@@ -49,11 +51,14 @@ public class NotificationHelper
      * @param notificationType
      * @param showBalloon
      */
-    private static void show(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType, boolean showBalloon) {
+    public static void show(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType,
+        @NotNull boolean showBalloon, @Nullable String notificationTitle) {
+
         ApplicationManager.getApplication().invokeLater(() -> {
 
             NotificationGroup group = showBalloon ? NOTIFICATION_GROUP : NOTIFICATION_GROUP_LOG_ONLY;
-            Notification notification =  group.createNotification(NOTIFICATION_TITLE, html, notificationType, null);
+            String title = StringUtils.defaultString(notificationTitle, NOTIFICATION_TITLE);
+            Notification notification =  group.createNotification(title, html, notificationType, null);
             notification.notify(project);
 
             if(showBalloon) {

@@ -87,7 +87,6 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     {
         FROM_CONFIG_TO_DEPLOY_SUFFIX.put("esb", "esb");
         FROM_CONFIG_TO_DEPLOY_SUFFIX.put("magnolia", "webapp");
-        FROM_CONFIG_TO_DEPLOY_SUFFIX.put("hybris", "todo");
     }
 
     private final Project project;
@@ -283,7 +282,8 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         @NotNull String patchPath, @NotNull UploadConfig uploadConfig) throws IllegalArgumentException {
 
         // get deployed project suffix from the one in configs
-        final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.get(uploadConfig.getSubProjectName());
+        final String deployedProjectSuffix = FROM_CONFIG_TO_DEPLOY_SUFFIX.getOrDefault(uploadConfig.getSubProjectName(),
+            uploadConfig.getSubProjectName());
 
         final List<String> projectsList;
         try {
@@ -308,7 +308,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
         // skip folder if only one project
         if (projectsList.size() == 1) {
-            return EMPTY;
+            return patchPath;
         }
 
         // search in s3 a folder with the selected suffix

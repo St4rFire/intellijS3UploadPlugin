@@ -52,8 +52,6 @@ public class UploadFileToS3Action extends AnAction implements Disposable {
         final Project project = event.getData(PlatformDataKeys.PROJECT);
         final Module module = event.getData(LangDataKeys.MODULE);
         final VirtualFile[] files = event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
-        final Module[] data = LangDataKeys.MODULE_CONTEXT_ARRAY.getData(event.getDataContext());
-        NotificationHelper.showEvent(project, "event Module list " + data, NotificationType.ERROR);
 
         // flatten files
         ArrayList<VirtualFile> allFiles = Lists.newArrayList();

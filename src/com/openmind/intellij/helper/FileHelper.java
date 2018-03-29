@@ -33,6 +33,8 @@ public class FileHelper {
 
 
     public static final String PROJECT_PROPERTIES_FILE = "s3upload.properties";
+    public static final String STARTUP_MESSAGE_KEY = "startup.message";
+    public static final String STARTUP_TITLE_KEY = "startup.title";
     public static final String DOT = ".";
     public static final String COMMA = ",";
     public static final String COLON = ":";
