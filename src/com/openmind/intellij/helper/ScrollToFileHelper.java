@@ -13,7 +13,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiFile;
 
 
-public class ScrollToFile
+public class ScrollToFileHelper
 {
 
     public static void scroll(@NotNull Project project, @Nullable PsiFile file) {

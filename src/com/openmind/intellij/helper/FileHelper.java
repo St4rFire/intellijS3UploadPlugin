@@ -32,19 +32,18 @@ import com.intellij.openapi.vfs.VirtualFileWithoutContent;
 public class FileHelper {
 
 
-    public static final String PROJECT_PROPERTIES_FILE = "s3upload.properties";
+    private static final String PROJECT_PROPERTIES_FILE = "s3upload.properties";
     public static final String STARTUP_MESSAGE_KEY = "startup.message";
     public static final String STARTUP_TITLE_KEY = "startup.title";
     public static final String DOT = ".";
     public static final String COMMA = ",";
     public static final String COLON = ":";
 
-    @NotNull
     public static long getLastModified(@NotNull VirtualFile virtualFile) {
         return new File(virtualFile.getCanonicalPath()).lastModified();
     }
 
-    public static boolean hasContent(@NotNull VirtualFile file) {
+    private static boolean hasContent(@NotNull VirtualFile file) {
         return !(file instanceof VirtualFileWithoutContent);
     }
 
@@ -52,7 +51,7 @@ public class FileHelper {
         if (files == null || files.length == 0) {
             return false;
         }
-        return !Stream.of(files).anyMatch(f -> !hasContent(f));
+        return Stream.of(files).allMatch(FileHelper::hasContent);
     }
 
     public static void flattenAllChildren(VirtualFile[] virtualFiles, List<VirtualFile> files) {
@@ -64,7 +63,8 @@ public class FileHelper {
         }
     }
 
-    public static void flattenAllChildren(VirtualFile virtualFile, List<VirtualFile> files) {
+    // VirtualFile.getChildren() is called from a recursive method. This may cause an endless loop on cyclic symlinks. Please use VfsUtilCore.visitChildrenRecursively() instead.
+    private static void flattenAllChildren(VirtualFile virtualFile, List<VirtualFile> files) {
         if (virtualFile.isDirectory()) {
             for (VirtualFile child : virtualFile.getChildren()) {
                 flattenAllChildren(child, files);
@@ -131,7 +131,7 @@ public class FileHelper {
     }
 
     @NotNull
-    public static String forceStartingWithSeparator(@Nullable String string) {
+    private static String forceStartingWithSeparator(@Nullable String string) {
         if(isEmpty(string)) return separator;
         return startsWith(string, separator) ? string : separator + string;
     }
@@ -154,7 +154,7 @@ public class FileHelper {
      * @return
      */
     @NotNull
-    public static Properties getProperties(@NotNull String filePath) {
+    private static Properties getProperties(@NotNull String filePath) {
         Properties prop = new Properties();
         File file = new File(filePath);
         if (file.exists()) {

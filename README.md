@@ -2,42 +2,72 @@
 
 ## Plugin description
 The main purpose of this plugin is to easily patch files from the local project to the one deployed on Amazon S3.  
-In the context menu the action "Upload to S3" will appear. It will display a submenu of available projects and versions automatically retrieved from S3.
+A new action "Upload to S3" will appear in the context menu. It will display a submenu of available projects and versions automatically retrieved from S3.
 The "Scroll to .class" action will be added too.
 
 S3 credentials need to be configured as described below. No further configurations are required for the standard folder structure.  
-Compiled files will be automatically uploaded instead of the source code.  
-The upload of folders or multiple selected files is supported.
+Compiled files will be automatically uploaded instead of the source code. 
+The upload of folders or multiple selected files is supported. 
+
+## S3 credentials
+
+AWS credentials must be set as variables in your environment using the prefix MYPROJECT_  
+Example:
+```
+MYPROJECT_AWS_ACCESS_KEY
+MYPROJECT_AWS_SECRET_ACCESS_KEY
+```
+
+The project name is inferred from the Intellij project name, but it can be overridden with the property:
+```
+project.name = myProject
+```
+
+
+Note: in latest Mac OS X Environment versions you will need to set the variables in the ~/.MacOSX/environment.plist to make them available to all applications, not just the Terminal:  
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>my.startup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>sh</string>
+    <string>-c</string>
+    <string>
+    launchctl setenv MYPROJECT_AWS_ACCESS_KEY ...
+    launchctl setenv MYPROJECT_AWS_SECRET_ACCESS_KEY ...
+    </string>
+
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+```
 
 ## S3 standard folder structure example
 
-A .txt file will describe the projects name and versions:
+A .txt in a specific path (default value is '/last/') on S3 will describe the available projects name and versions:
 ```
 {bucket.name}/last/uat-myWEBproject.txt (containing current version: 12.3.5)
 {bucket.name}/last/pro-myWEBproject.txt (containing current production version: 12.3.0)
 {bucket.name}/last/uat-myESBproject.txt (containing current production version: 3.3.0)
 ...
 ```
-The projects path will be:
+The deployed projects path will be:
 ```
 {bucket.name}/versions/12.3.5/patch/.*-myWEBproject/
 {bucket.name}/versions/12.3.0/patch/.*-myWEBproject/
 {bucket.name}/versions/3.3.0/patch/.*-myESBproject/
 ```
-The full .*-project name is retrieved from .txt suffix automatically. If only one project exists, the folder is skipped.
- 
-
-## S3 credentials
-
-
+The full .*-project name is retrieved from .txt suffix automatically. If only one project exists, the project folder is skipped.
 
 ## S3 Bucket and custom properties
 
 The default bucket name is **{project.name}-releases**.  
-The project name is inferred from the Intellij project name, but it can be overridden with the property:
-```
-project.name = myProject
-```
 
 To completely override the bucket name you can use:
 ```
@@ -51,12 +81,12 @@ Deployed projects and relative versions are read from .txt files in:
 {bucket.name}/{last.versions.path}/
 ```
 
-Those files suffix is the project name. Eg:
+Those files should have a suffix corresponding to the project name. Example:
 ```
 uat-myWEBproject.txt
 ```
 
-The file content is the current project version. Eg:
+The file content is the current project version. Example:
 ```
 12.3.5
 ```
@@ -120,12 +150,12 @@ deploy.source.output = /custompath/
 ## Root path 
 
 This affects the path relative to the deployed project root.  
-The default behaviour is to truncate the path at the beginning of the output path, but it can be changed with the property:
+The default behaviour is to truncate the path at the bExampleinning of the output path, but it can be changed with the property:
 ```
 deploy.auto.source.mapping = ...
 ```
 
-Depending on the chosen strategy, the path relative to the project folder will differ.  Consider the following local path:
+Depending on the chosen stratExampley, the path relative to the project folder will differ.  Consider the following local path:
 ```
 anyPath/myProject/anyFolders/myModule/src/main/java/com/example/JavaFile.java
 ```

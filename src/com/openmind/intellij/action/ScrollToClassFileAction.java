@@ -1,10 +1,5 @@
 package com.openmind.intellij.action;
 
-import static com.intellij.openapi.actionSystem.LangDataKeys.MODULE_CONTEXT_ARRAY;
-
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -19,7 +14,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
 import com.openmind.intellij.helper.NotificationHelper;
-import com.openmind.intellij.helper.ScrollToFile;
+import com.openmind.intellij.helper.ScrollToFileHelper;
 import com.openmind.intellij.service.OutputFileService;
 
 
@@ -38,10 +33,13 @@ public class ScrollToClassFileAction extends AnAction {
      */
     public void actionPerformed(AnActionEvent event) {
         final Project project = event.getData(PlatformDataKeys.PROJECT);
+        if (project ==null) {
+            return;
+        }
         final Module module = event.getData(LangDataKeys.MODULE);
         final PsiFile selectedFile = event.getData(PlatformDataKeys.PSI_FILE);
 
-        if (project == null || selectedFile == null || selectedFile.getVirtualFile() == null) {
+        if (selectedFile == null || selectedFile.getVirtualFile() == null) {
             NotificationHelper.showEvent(project, "Could not find any selected file!", NotificationType.ERROR);
             return;
         }
@@ -53,7 +51,7 @@ public class ScrollToClassFileAction extends AnAction {
             PsiFile fileManaged = PsiManager.getInstance(project).findFile(compiledFile);
 
             // scroll to file in navigator if found
-            ScrollToFile.scroll(project, fileManaged);
+            ScrollToFileHelper.scroll(project, fileManaged);
 
         } catch (Exception e) {
             NotificationHelper.showEvent(project, ".class file not found!", NotificationType.ERROR);

@@ -9,7 +9,6 @@ public class UploadConfig
     private final String fullFileName;
     private final String fileName;
     private final String subProjectName;
-    private final boolean isProd;
     private String version;
 
     public UploadConfig(String projectName, String versionFileName) {
@@ -17,7 +16,6 @@ public class UploadConfig
         this.fullFileName = versionFileName;
         this.fileName = StringUtils.substringBeforeLast(versionFileName, ".");
         this.subProjectName = StringUtils.substringAfterLast(this.fileName, "-");
-        this.isProd = this.fileName.startsWith("pro");
     }
 
     public String getProjectName() {
@@ -34,10 +32,6 @@ public class UploadConfig
 
     public String getSubProjectName() {
         return subProjectName;
-    }
-
-    public boolean isProd() {
-        return isProd;
     }
 
     public String getVersion() {

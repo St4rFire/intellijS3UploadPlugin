@@ -1,6 +1,5 @@
 package com.openmind.intellij.service.impl;
 
-import static com.intellij.notification.NotificationType.INFORMATION;
 import static com.openmind.intellij.helper.FileHelper.COLON;
 import static com.openmind.intellij.helper.FileHelper.COMMA;
 import static com.openmind.intellij.helper.FileHelper.DOT;
@@ -11,7 +10,6 @@ import static com.openmind.intellij.helper.FileHelper.getProjectProperties;
 import static java.io.File.separator;
 import static org.apache.commons.lang.StringUtils.EMPTY;
 import static org.apache.commons.lang.StringUtils.contains;
-import static org.apache.commons.lang.StringUtils.defaultString;
 import static org.apache.commons.lang.StringUtils.isEmpty;
 import static org.apache.commons.lang.StringUtils.isNotEmpty;
 import static org.apache.commons.lang.StringUtils.replaceOnce;
@@ -20,6 +18,7 @@ import static org.apache.commons.lang.StringUtils.startsWith;
 import static org.apache.commons.lang.StringUtils.substringAfter;
 import static org.apache.commons.lang.StringUtils.substringBeforeLast;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -74,12 +73,12 @@ public class OutputFileServiceImpl implements OutputFileService {
     private static final String DEPLOY_SOURCE_OUTPUT_KEY = "deploy.source.output";
 
     // deploy path prefix
-    private static final String DEPLOY_AUTO_SOURCE_MAPPING_KEY = "deploy.auto.source.mapping";
+    private static final String DEPLOY_AUTO_SOURCE_TO_DEPLOY_MAPPING_KEY = "deploy.auto.source.mapping";
 
     // maven-war-plugin defaults
     private static final String DEFAULT_DEPLOY_SOURCE_OUTPUT = "/WEB-INF/classes/";
     private static final List<String> DEFAULT_SOURCE_ROOTS = Arrays.asList("/src/main/java/", "/src/main/resources/");
-    private static final List<String> DEFAULT_WEB_RESOURCES = Arrays.asList("/src/main/webapp/");
+    private static final List<String> DEFAULT_WEB_RESOURCES = Collections.singletonList("/src/main/webapp/");
 
     // src deploy path transformation - search custom mappings from source path to deploy path
     private final Map<String,String> customDeployMappings = new TreeMap<>();
@@ -92,16 +91,16 @@ public class OutputFileServiceImpl implements OutputFileService {
     }
 
     private final Project project;
-    private final Properties customProperties;
+
     private final List<String> moduleContentRoots;
     private final List<String> moduleSourceRoots;
     private final Module[] modules;
-    private final DeployPathStrategy deployPathStrategy;
     private final String deployPathPrefix;
     private final String sourceDeployOutput;
-    private final boolean autoSouceDeployMapping;
+    private final boolean autoSouceToDeployOutputMapping;
+    private DeployPathStrategy deployPathStrategy;
+    private DeployPathStrategy defaultDeployPathStrategy = DeployPathStrategy.FROM_SOURCES;
 
-    private final static DeployPathStrategy DEFAULT_DEPLOY_PATH_STRATEGY = DeployPathStrategy.FROM_SOURCES;
     private enum DeployPathStrategy {
 
         // deploy path starts at custom path conversion
@@ -114,11 +113,12 @@ public class OutputFileServiceImpl implements OutputFileService {
         FROM_MODULE_NAME,
 
         // deploy path starts after custom path conversion
-        AFTER_PROJECT_ROOT;
+        AFTER_PROJECT_ROOT
     }
 
     // todo  com.intellij.openapi.util.io.FileUtil.toCanonicalPath(java.lang.String)
     // todo FileUtilRt.toSystemIndependentName()
+
 
     /**
      * Setup
@@ -131,21 +131,23 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         // module paths
         moduleContentRoots = Arrays.stream(projectRootManager.getContentRoots())
-            .map(v -> v.getCanonicalPath())
+            .map(VirtualFile::getCanonicalPath)
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
 
         // sourceroots Eg: .../main/java and .../main/resources
         moduleSourceRoots = projectRootManager.getModuleSourceRoots(JavaModuleSourceRootTypes.PRODUCTION).stream()
-            .map(v -> v.getCanonicalPath())
+            .map(VirtualFile::getCanonicalPath)
             .sorted(Comparator.reverseOrder())
             .collect(Collectors.toList());
 
         // laod modules
         modules = ModuleManager.getInstance(project).getModules();
 
+        addKwownDefaults();
+
         // load properties
-        customProperties = getProjectProperties(project);
+        Properties customProperties = getProjectProperties(project);
         customProperties.forEach((k,v) -> {
             final String key = k.toString();
 
@@ -181,8 +183,8 @@ public class OutputFileServiceImpl implements OutputFileService {
         sourceDeployOutput = customProperties.getProperty(DEPLOY_SOURCE_OUTPUT_KEY, DEFAULT_DEPLOY_SOURCE_OUTPUT);
 
         // path mappings
-        DEFAULT_SOURCE_ROOTS.forEach(r -> customDeployMappings.put(r, sourceDeployOutput));
-        DEFAULT_WEB_RESOURCES.forEach(r -> customDeployMappings.put(r, separator));
+        DEFAULT_SOURCE_ROOTS.forEach(root -> customDeployMappings.put(root, sourceDeployOutput));
+        DEFAULT_WEB_RESOURCES.forEach(root -> customDeployMappings.put(root, separator));
 
         FileHelper.populateMapFromProperties(customProperties, DEPLOY_PATH_MAPPINGS_KEY, customDeployMappings,
             FileHelper::ensureSeparators);
@@ -191,18 +193,27 @@ public class OutputFileServiceImpl implements OutputFileService {
         String strategy = customProperties.getProperty(DEPLOY_PATH_STRATEGY_KEY);
         deployPathStrategy = isNotEmpty(strategy)
             ? DeployPathStrategy.valueOf(strategy)
-            : DEFAULT_DEPLOY_PATH_STRATEGY;
+            : defaultDeployPathStrategy;
 
         // deploy prefix
         deployPathPrefix = forceNotStartingWithSeparator(forceEndingWithSeparator(
             customProperties.getProperty(DEPLOY_PATH_PREFIX_KEY), true));
 
         // automatic replacement of sources when deploying
-        String customAutoSouceDeployMapping = customProperties.getProperty(DEPLOY_AUTO_SOURCE_MAPPING_KEY);
-        autoSouceDeployMapping = isNotEmpty(customAutoSouceDeployMapping)
-            ? BooleanUtils.toBoolean(customAutoSouceDeployMapping)
-            : true;
+        String autoSourceToDeployOutputMappingSetting = customProperties.getProperty(DEPLOY_AUTO_SOURCE_TO_DEPLOY_MAPPING_KEY);
+        autoSouceToDeployOutputMapping = isEmpty(autoSourceToDeployOutputMappingSetting)
+            || BooleanUtils.toBoolean(autoSourceToDeployOutputMappingSetting);
     }
+
+
+    private void addKwownDefaults() {
+        boolean isHybris = new File(project.getBasePath(), "/bin/custom").exists();
+        if (isHybris) {
+            customDeployMappings.put("/src/", "/webroot/WEB-INF/classes/");
+            defaultDeployPathStrategy = DeployPathStrategy.AFTER_PROJECT_ROOT;
+        }
+    }
+
 
 
     /**
@@ -212,6 +223,7 @@ public class OutputFileServiceImpl implements OutputFileService {
      * @throws IllegalArgumentException if compiled file should exists but it doesn't
      */
     @NotNull
+    @Override
     public VirtualFile getCompiledOrOriginalFile(@Nullable Module module, @NotNull VirtualFile originalFile) {
         module = getModuleOrSearch(module, originalFile);
 
@@ -265,15 +277,6 @@ public class OutputFileServiceImpl implements OutputFileService {
         throw new IllegalArgumentException("Unable to find compiled file: " + outputPath);
     }
 
-    private Module getModuleOrSearch(@Nullable Module module, @NotNull VirtualFile originalFile)
-    {
-        // if not provided try search
-        if (module == null) {
-            module = getContainingModule(originalFile);
-        }
-        return module;
-    }
-
     @NotNull
     @Override
     public List<VirtualFile> findSubclasses(VirtualFile originalFile, VirtualFile outputFile) {
@@ -295,6 +298,16 @@ public class OutputFileServiceImpl implements OutputFileService {
 
 
     @Nullable
+    private Module getModuleOrSearch(@Nullable Module module, @NotNull VirtualFile originalFile)
+    {
+        // if not provided try search
+        if (module == null) {
+            module = getContainingModule(originalFile).orElse(null);
+        }
+        return module;
+    }
+
+    @Nullable
     private String automaticCompilePathConversion(@Nullable Module module, @NotNull VirtualFile originalFile) {
 
         if (module == null) {
@@ -305,7 +318,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         final String moduleOutputPath;
         try
         {
-            moduleOutputPath = CompilerPaths.getModuleOutputPath( module, false );
+            moduleOutputPath = CompilerPaths.getModuleOutputPath(module, false );
         }
         catch (Exception e)
         {
@@ -355,7 +368,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         // search custom source - output mapping
         String processedPath = originalPath;
         String srcPath = null;
-        String deployPath = null;
+        String deployPath;
         Optional<Map.Entry<String, String>> customDeployMapping = customDeployMappings.entrySet().stream()
             .filter(e -> originalPath.contains(e.getKey()))
             .findFirst();
@@ -378,14 +391,14 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
 
         // auto source transformation
-        if (autoSouceDeployMapping && contentRoot.isPresent() && sourceRoot.isPresent() && !customDeployMapping.isPresent()) {
+        if (autoSouceToDeployOutputMapping && contentRoot.isPresent() && sourceRoot.isPresent() && !customDeployMapping.isPresent()) {
             String sourceFolders = ensureSeparators(replaceOnce(sourceRoot.get(), contentRoot.get(), EMPTY));
             processedPath = replaceOnce(processedPath, sourceFolders, sourceDeployOutput);
 
         }
 
         if (deployPathStrategy == DeployPathStrategy.FROM_SOURCES) {
-            if ((contentRoot.isPresent() && sourceRoot.isPresent()) || customDeployMapping.isPresent()) {
+            if (contentRoot.isPresent() && sourceRoot.isPresent()) {
                 String beforeModuleName = substringBeforeLast(sourceRoot.get(), separator);
                 return replaceOnce(processedPath, beforeModuleName + separator, EMPTY);
             } else {
@@ -412,8 +425,8 @@ public class OutputFileServiceImpl implements OutputFileService {
     }
 
 
-    private Module getContainingModule(@NotNull VirtualFile originalFile) {
-        return Stream.of(modules).filter(m -> m.getModuleScope().accept(originalFile)).findFirst().orElse(null);
+    private Optional<Module> getContainingModule(@NotNull VirtualFile originalFile) {
+        return Stream.of(modules).filter(m -> m.getModuleScope().accept(originalFile)).findFirst();
     }
 
     private Optional<String> getModuleContentRoot(String originalPath)
@@ -433,12 +446,7 @@ public class OutputFileServiceImpl implements OutputFileService {
 
     @NotNull
     private CompiledBehavior getOrCreateExtensionBehavior(@NotNull String key) {
-        CompiledBehavior extensionBehavior = compiledBehaviors.get(key);
-        if (extensionBehavior == null) {
-            extensionBehavior = new CompiledBehavior(key);
-            compiledBehaviors.put(key, extensionBehavior);
-        }
-        return extensionBehavior;
+        return compiledBehaviors.computeIfAbsent(key, CompiledBehavior::new);
     }
 
     private static class CompiledBehavior
@@ -451,44 +459,44 @@ public class OutputFileServiceImpl implements OutputFileService {
         private String subclassesSeparator;
 
 
-        public CompiledBehavior(String outputExtension)
+        CompiledBehavior(String outputExtension)
         {
             this(outputExtension, null);
         }
 
-        public CompiledBehavior(String outputExtension, String subclassesSeparator)
+        CompiledBehavior(String outputExtension, String subclassesSeparator)
         {
             this.outputExtension = outputExtension;
             this.pathMappings = Maps.newLinkedHashMap();
             this.subclassesSeparator = subclassesSeparator;
         }
 
-        public String getOutputExtension()
+        String getOutputExtension()
         {
             return outputExtension;
         }
 
-        public void setOutputExtension(String outputExtension)
+        void setOutputExtension(String outputExtension)
         {
             this.outputExtension = outputExtension;
         }
 
-        public Map<String, String> getPathMappings()
+        Map<String, String> getPathMappings()
         {
             return pathMappings;
         }
 
-        public void addPathMappings(Map<String, String> pathMappings)
+        void addPathMappings(Map<String, String> pathMappings)
         {
             this.pathMappings.putAll(pathMappings);
         }
 
-        public String getSubclassesSeparator()
+        String getSubclassesSeparator()
         {
             return subclassesSeparator;
         }
 
-        public void setSubclassesSeparator(String subclassesSeparator)
+        void setSubclassesSeparator(String subclassesSeparator)
         {
             this.subclassesSeparator = subclassesSeparator;
         }

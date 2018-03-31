@@ -25,7 +25,7 @@ public class NotificationHelper
     private static final NotificationGroup NOTIFICATION_GROUP_LOG_ONLY = NotificationGroup.logOnlyGroup("S3UploadPlugin-balloon-notifications-log-only");
 
     /**
-     * Show message in event log and baloon
+     * Show message in event log and balloon
      * @param project
      * @param html
      * @param notificationType
@@ -45,14 +45,14 @@ public class NotificationHelper
     }
 
     /**
-     * Show message in event log and baloon (optional)
+     * Show message in event log and balloon (optional)
      * @param project
      * @param html
      * @param notificationType
      * @param showBalloon
      */
     public static void show(@NotNull Project project, @NotNull String html, @NotNull NotificationType notificationType,
-        @NotNull boolean showBalloon, @Nullable String notificationTitle) {
+        boolean showBalloon, @Nullable String notificationTitle) {
 
         ApplicationManager.getApplication().invokeLater(() -> {
 

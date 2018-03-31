@@ -1,6 +1,5 @@
 package com.openmind.intellij.extension;
 
-import static com.intellij.notification.NotificationType.ERROR;
 import static com.intellij.notification.NotificationType.INFORMATION;
 import static com.openmind.intellij.helper.FileHelper.STARTUP_MESSAGE_KEY;
 import static com.openmind.intellij.helper.FileHelper.STARTUP_TITLE_KEY;
