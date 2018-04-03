@@ -101,9 +101,6 @@ public class OutputFileServiceImpl implements OutputFileService {
 
     private enum DeployPathStrategy {
 
-        // deploy path starts at custom path conversion
-        FROM_MAPPINGS,
-
         // deploy path starts at source folders
         FROM_SOURCES,
 
@@ -379,7 +376,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
 
         // deploy path before custom mappings
-        if (deployPathStrategy == DeployPathStrategy.FROM_MAPPINGS) {
+        if (deployPathStrategy == DeployPathStrategy.FROM_SOURCES && customDeployMapping.isPresent()) {
             if (customDeployMapping.isPresent()) {
                 return processedPath.substring(originalPath.indexOf(srcPath) + 1);
 
@@ -389,7 +386,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         }
 
         // auto source to output transformation
-        if (autoSouceToDeployOutputMapping && contentRoot.isPresent() && sourceRoot.isPresent() && !customDeployMapping.isPresent()) {
+        if (autoSouceToDeployOutputMapping && contentRoot.isPresent() && sourceRoot.isPresent()) {
             String sourceFolders = ensureSeparators(replaceOnce(sourceRoot.get(), contentRoot.get(), EMPTY));
             processedPath = replaceOnce(processedPath, sourceFolders, sourceDeployOutput);
         }

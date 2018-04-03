@@ -160,12 +160,9 @@ Depending on the chosen stratExampley, the path relative to the project folder w
 anyPath/myProject/anyFolders/myModule/src/main/java/com/example/JavaFile.java
 ```
 
-##### FROM_MAPPINGS
-Starts from custom mapping transformation, exception if not found. Deployed path:  
-/WEB-INF/classes/com/example/JavaFile.class
 
 ##### FROM_SOURCES (default)
-Starts from custom mapping transformation or auto source transformation, exception if not found. Deployed path:     
+Starts from custom mapping transformation or auto source to output transformation, exception if not found. Deployed path:     
 /WEB-INF/classes/com/example/JavaFile.class
 
 ##### FROM_MODULE_NAME
