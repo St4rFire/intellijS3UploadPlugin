@@ -17,7 +17,7 @@
   </extensions>
 
   <actions>
-      <group id="S3UploadPlugin.Menu" text="Upload to S3" description="Upload to S3" popup="true" icon="/actions/export.png">
+      <group id="S3UploadPlugin.Menu" text="Upload to S3" description="Upload to S3" popup="true" icon="/actions/export.png" class="com.intellij.ide.actions.NonTrivialActionGroup" >
          <add-to-group group-id="VersionControlsGroup"  anchor="first"  />
       </group>
       <action id="S3UploadPlugin.ScrollToClassFile" class="com.openmind.intellij.action.ScrollToClassFileAction" text="Scroll to .class" description="Scroll to .class" icon="/actions/expandall.png">
