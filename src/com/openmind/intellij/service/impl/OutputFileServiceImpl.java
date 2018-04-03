@@ -45,7 +45,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.helper.FileHelper;
-import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.OutputFileService;
 
 
@@ -378,7 +377,6 @@ public class OutputFileServiceImpl implements OutputFileService {
             srcPath = customDeployMapping.get().getKey();
             deployPath = customDeployMapping.get().getValue();
             processedPath = replaceOnce(originalPath, srcPath, deployPath);
-            NotificationHelper.showEvent(project, " customDeployMapping " + processedPath, NotificationType.ERROR);
         }
 
         // deploy path before custom mappings
