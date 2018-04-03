@@ -62,7 +62,7 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
             } catch (Exception e) {
 
                 LOGGER.error(e);
-                NotificationHelper.showEvent(project, "disabled: " + e.getMessage(), INFORMATION);
+                NotificationHelper.showEvent(project, "disabled, " + e.getMessage(), INFORMATION);
             }
 
             // Custom message

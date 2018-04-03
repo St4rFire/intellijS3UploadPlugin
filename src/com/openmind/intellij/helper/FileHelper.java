@@ -25,7 +25,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.openapi.vfs.VirtualFileWithoutContent;
 
 
@@ -63,16 +65,19 @@ public class FileHelper {
         }
     }
 
-    // VirtualFile.getChildren() is called from a recursive method. This may cause an endless loop on cyclic symlinks. Please use VfsUtilCore.visitChildrenRecursively() instead.
     private static void flattenAllChildren(VirtualFile virtualFile, List<VirtualFile> files) {
-        if (virtualFile.isDirectory()) {
-            for (VirtualFile child : virtualFile.getChildren()) {
-                flattenAllChildren(child, files);
+        VfsUtilCore.visitChildrenRecursively(virtualFile, new VirtualFileVisitor() {
+            @NotNull
+            @Override
+            public Result visitFileEx(@NotNull VirtualFile file) {
+                if (!file.isDirectory() && hasContent(file)) {
+                    files.add(file);
+                }
+                return CONTINUE;
             }
-        } else if (hasContent(virtualFile)) { // todo test link
-            files.add(virtualFile);
-        }
+        });
     }
+
 
     /**
      * Read text from file

@@ -24,7 +24,7 @@ project.name = myProject
 ```
 
 
-Note: in latest Mac OS X Environment versions you will need to set the variables in the ~/.MacOSX/environment.plist to make them available to all applications, not just the Terminal:  
+Note: in latest Mac OS X Environment versions you will need to set the variables in the ~/Library/LaunchAgents/environment.plist to make them available to all applications, not just the Terminal:  
 ```
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

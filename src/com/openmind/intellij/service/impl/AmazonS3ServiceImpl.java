@@ -346,7 +346,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         String secretValue = getProjectSystemEnvValue(projectSecret);
 
         if (isEmpty(keyValue) || isEmpty(secretValue)) {
-            throw new IllegalArgumentException("System Variables starting with " + addProjectPrefix(EMPTY) + "not found");
+            throw new IllegalArgumentException("System Variables starting with " + addProjectPrefix(EMPTY) + " not found");
         }
     }
 
