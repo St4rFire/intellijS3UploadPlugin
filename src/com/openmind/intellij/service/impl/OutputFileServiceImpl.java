@@ -201,8 +201,9 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         // automatic replacement of sources when deploying
         String autoSourceToDeployOutputMappingSetting = customProperties.getProperty(DEPLOY_AUTO_SOURCE_TO_DEPLOY_MAPPING_KEY);
-        autoSouceToDeployOutputMapping = isEmpty(autoSourceToDeployOutputMappingSetting)
-            || BooleanUtils.toBoolean(autoSourceToDeployOutputMappingSetting);
+        autoSouceToDeployOutputMapping = isNotEmpty(autoSourceToDeployOutputMappingSetting)
+            ? BooleanUtils.toBoolean(autoSourceToDeployOutputMappingSetting)
+            : true;
     }
 
 
@@ -334,8 +335,6 @@ public class OutputFileServiceImpl implements OutputFileService {
 
                 String pathFromSourceFolder = replaceOnce(originalPath, sourceRoot.get(), EMPTY);
                 return moduleOutputPath + pathFromSourceFolder;
-            } else {
-                NotificationHelper.showEvent(project, " ... but not found sourceRoot for" + originalPath, NotificationType.ERROR);
             }
         }
         return null;
@@ -369,6 +368,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         String processedPath = originalPath;
         String srcPath = null;
         String deployPath;
+
         Optional<Map.Entry<String, String>> customDeployMapping = customDeployMappings.entrySet().stream()
             .filter(e -> originalPath.contains(e.getKey()))
             .findFirst();
@@ -378,6 +378,7 @@ public class OutputFileServiceImpl implements OutputFileService {
             srcPath = customDeployMapping.get().getKey();
             deployPath = customDeployMapping.get().getValue();
             processedPath = replaceOnce(originalPath, srcPath, deployPath);
+            NotificationHelper.showEvent(project, " customDeployMapping " + processedPath, NotificationType.ERROR);
         }
 
         // deploy path before custom mappings
@@ -390,17 +391,16 @@ public class OutputFileServiceImpl implements OutputFileService {
             }
         }
 
-        // auto source transformation
+        // auto source to output transformation
         if (autoSouceToDeployOutputMapping && contentRoot.isPresent() && sourceRoot.isPresent() && !customDeployMapping.isPresent()) {
             String sourceFolders = ensureSeparators(replaceOnce(sourceRoot.get(), contentRoot.get(), EMPTY));
             processedPath = replaceOnce(processedPath, sourceFolders, sourceDeployOutput);
-
         }
 
         if (deployPathStrategy == DeployPathStrategy.FROM_SOURCES) {
-            if (contentRoot.isPresent() && sourceRoot.isPresent()) {
-                String beforeModuleName = substringBeforeLast(sourceRoot.get(), separator);
-                return replaceOnce(processedPath, beforeModuleName + separator, EMPTY);
+            if (contentRoot.isPresent() && sourceRoot.isPresent() && sourceRoot.get().length() > contentRoot.get().length()) {
+                String beforeSourceFolders = sourceRoot.get().substring(0, contentRoot.get().length());
+                return replaceOnce(processedPath, beforeSourceFolders + separator, EMPTY);
             } else {
                 throw new IllegalArgumentException("No sourceRoot found for " + originalPath);
             }
