@@ -102,10 +102,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      */
     public AmazonS3ServiceImpl(@NotNull Project project) throws IllegalArgumentException {
         this.project = project;
-
-        // rispsota alla fine
         this.outputFileService = ServiceManager.getService(project, OutputFileService.class);
-
         this.customProperties = loadCustomProperties();
         checkSystemVars();
         this.uploadConfigs = loadUploadConfigs();
@@ -172,12 +169,12 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         // upload files
         projectRelativePathTofiles.asMap().forEach((projectRelativeDeployPath, virtualFiles) -> {
             final String fullS3DeployPath = deployedProjectPath + projectRelativeDeployPath;
-            List<File> filesToUpload = virtualFiles.stream()
+            final List<File> filesToUpload = virtualFiles.stream()
                 .map(v -> new File(v.getCanonicalPath()))
                 .collect(Collectors.toList());
 
-            String uploadedFiles = virtualFiles.stream()
-                .map(f -> fullS3DeployPath + separator + f.getName())
+            final String uploadedFiles = virtualFiles.stream()
+                .map(f -> bucketName + separator + fullS3DeployPath + separator + f.getName())
                 .collect(Collectors.joining(System.lineSeparator()));
             String message = (uploadedFiles.isEmpty() ? EMPTY : System.lineSeparator()) + uploadedFiles;
 

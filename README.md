@@ -155,26 +155,39 @@ The default behaviour is to truncate the path at the bExampleinning of the outpu
 deploy.auto.source.mapping = ...
 ```
 
-Depending on the chosen stratExampley, the path relative to the project folder will differ.  Consider the following local path:
+Depending on the chosen strategy, the path relative to the project folder will differ.  Consider the following local path:
 ```
 anyPath/myProject/anyFolders/myModule/src/main/java/com/example/JavaFile.java
 ```
 
 
-##### FROM_SOURCES (default)
-Starts from custom mapping transformation or auto source to output transformation, exception if not found. Deployed path:     
+##### FROM_SOURCES strategy (default)
+Starts from custom mapping transformation or auto source to output transformation, exception if not found.  
+Deployed path:  
+```   
 /WEB-INF/classes/com/example/JavaFile.class
+```
 
-##### FROM_MODULE_NAME
-Starts from module name (included). Deployed path:  
+##### FROM_MODULE_NAME strategy
+Starts from module name (included).  
+Deployed path:  
+```
 /myModule/WEB-INF/classes/com/example/JavaFile.class
+```
 
-##### AFTER_PROJECT_ROOT
-Basically keep all folders. Deployed path:
+##### AFTER_PROJECT_ROOT strategy
+Basically keep all folders.  
+Deployed path:
+```
 /anyFolders/myModule/WEB-INF/classes/com/example/JavaFile.class
+```
 
 <br/>
+
+##### Custom prefix
 To add a custom path before the calculated Root path, use:
+
 ```
 deploy.path.prefix = /rootFoldersInDeployedProject
 ```
+
