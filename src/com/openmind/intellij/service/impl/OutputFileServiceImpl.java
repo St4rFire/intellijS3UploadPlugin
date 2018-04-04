@@ -312,12 +312,10 @@ public class OutputFileServiceImpl implements OutputFileService {
 
         // get output path from module
         final String moduleOutputPath;
-        try
-        {
+        try {
             moduleOutputPath = CompilerPaths.getModuleOutputPath(module, false );
-        }
-        catch (Exception e)
-        {
+
+        } catch (Exception e) {
             return null;
         }
 
@@ -443,8 +441,7 @@ public class OutputFileServiceImpl implements OutputFileService {
         return compiledBehaviors.computeIfAbsent(key, CompiledBehavior::new);
     }
 
-    private static class CompiledBehavior
-    {
+    private static class CompiledBehavior {
 
         private String outputExtension;
 
@@ -458,8 +455,7 @@ public class OutputFileServiceImpl implements OutputFileService {
             this(outputExtension, null);
         }
 
-        CompiledBehavior(String outputExtension, String subclassesSeparator)
-        {
+        CompiledBehavior(String outputExtension, String subclassesSeparator) {
             this.outputExtension = outputExtension;
             this.pathMappings = Maps.newLinkedHashMap();
             this.subclassesSeparator = subclassesSeparator;

@@ -33,7 +33,7 @@ public class ScrollToClassFileAction extends AnAction {
      */
     public void actionPerformed(AnActionEvent event) {
         final Project project = event.getData(PlatformDataKeys.PROJECT);
-        if (project ==null) {
+        if (project == null) {
             return;
         }
         final Module module = event.getData(LangDataKeys.MODULE);

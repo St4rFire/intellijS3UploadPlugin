@@ -198,8 +198,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      * @param bucketName
      */
     @NotNull
-    private void updateVersion(@NotNull AmazonS3 s3Client, @NotNull UploadConfig uploadConfig, String bucketName)
-    {
+    private void updateVersion(@NotNull AmazonS3 s3Client, @NotNull UploadConfig uploadConfig, String bucketName) {
         final String versionFilePath = getLastVersionsPath() + uploadConfig.getFullFileName();
         final String version = readS3FileFirstLine(s3Client, bucketName, versionFilePath, "Version file");
         uploadConfig.setVersion(version);
@@ -248,8 +247,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
 
     @NotNull
     private String readS3FileFirstLine(@NotNull AmazonS3 s3Client, @NotNull String bucketName,
-        @NotNull String versionFilePath, @NotNull String fileDescription)
-    {
+        @NotNull String versionFilePath, @NotNull String fileDescription) {
 
         final S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, versionFilePath));
         if (s3Object == null || s3Object.getObjectContent() == null) {
@@ -397,17 +395,15 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
      * @return
      */
     private String execEcho(String systemVar) {
-        try
-        {
+        try {
             String[] cmdline = { "sh", "-c", "echo $" + systemVar };
             Process process = Runtime.getRuntime().exec(cmdline);
             process.waitFor();
             BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String s = stdInput.readLine();
             return s;
-        }
-        catch (IOException | InterruptedException e)
-        {
+
+        } catch (IOException | InterruptedException e) {
         }
         return null;
     }
