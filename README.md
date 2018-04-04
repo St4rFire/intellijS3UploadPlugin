@@ -9,6 +9,13 @@ S3 credentials need to be configured as described below. No further configuratio
 Compiled files will be automatically uploaded instead of the source code. 
 The upload of folders or multiple selected files is supported. 
 
+## Custom properties
+
+To add custom properties you can create the following file in the project root folder:  
+```
+s3upload.properties
+```
+
 ## S3 credentials
 
 AWS credentials must be set as variables in your environment using the prefix MYPROJECT_  
@@ -18,7 +25,7 @@ MYPROJECT_AWS_ACCESS_KEY
 MYPROJECT_AWS_SECRET_ACCESS_KEY
 ```
 
-The project name is inferred from the Intellij project name, but it can be overridden with the property:
+The project name is inferred from the Intellij project name, but it can be overridden in the properties file:
 ```
 project.name = myProject
 ```
@@ -65,7 +72,8 @@ The deployed projects path will be:
 ```
 The full .*-project name is retrieved from .txt suffix automatically. If only one project exists, the project folder is skipped.
 
-## S3 Bucket and custom properties
+
+## S3 Bucket
 
 The default bucket name is **{project.name}-releases**.  
 
