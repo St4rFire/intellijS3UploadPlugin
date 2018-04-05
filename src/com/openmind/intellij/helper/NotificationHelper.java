@@ -1,10 +1,18 @@
 package com.openmind.intellij.helper;
 
+import static com.intellij.notification.NotificationType.INFORMATION;
+
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.util.CollectionUtils;
 
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationGroup;
@@ -68,5 +76,37 @@ public class NotificationHelper
                 );
             }
         });
+    }
+
+    public static void scheduleRandomNotifications(@NotNull Project project, @NotNull List<String> messages, long period) {
+        new Timer().schedule(new RandomNotificationTimerTask(project, messages), 0, period);
+    }
+
+    private static class RandomNotificationTimerTask extends TimerTask
+    {
+        private final Project project;
+        private final List<String> messages;
+        private LinkedList<String> previousMessages;
+
+        public RandomNotificationTimerTask(Project project, List<String> messages)
+        {
+            this.project = project;
+            this.messages = messages;
+        }
+
+        public void run() {
+            if (CollectionUtils.isEmpty(messages)) {
+                return;
+            }
+
+            if (CollectionUtils.isEmpty(previousMessages)) {
+                previousMessages = new LinkedList<>(messages);
+            }
+
+            Collections.shuffle(previousMessages);
+            String selectedMessage = previousMessages.pop();
+
+            NotificationHelper.show(project, selectedMessage, INFORMATION, true, StringUtils.EMPTY);
+        }
     }
 }

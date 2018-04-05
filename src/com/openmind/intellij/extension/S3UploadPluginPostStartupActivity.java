@@ -72,6 +72,12 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
             if (StringUtils.isNotEmpty(startupMessage)) {
                 NotificationHelper.show(project, startupMessage, INFORMATION, true, startupTitle);
             }
+
+            // NotificationHelper.scheduleRandomNotifications();
+
         });
     }
+
+
 }
+
