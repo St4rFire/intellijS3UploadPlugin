@@ -363,13 +363,13 @@ public class OutputFileServiceImpl implements OutputFileService {
         String deployPath;
 
         Optional<Map.Entry<String, String>> customDeployMapping = customDeployMappings.entrySet().stream()
-            .filter(e -> originalPath.contains(e.getKey()))
+            .filter(e -> forceEndingWithSeparator(originalPath, true).contains(e.getKey()))
             .findFirst();
         if (customDeployMapping.isPresent()) {
 
             // custom new path
-            srcPath = customDeployMapping.get().getKey();
-            deployPath = customDeployMapping.get().getValue();
+            srcPath = StringUtils.substringBeforeLast(customDeployMapping.get().getKey(), separator);
+            deployPath = StringUtils.substringBeforeLast(customDeployMapping.get().getValue(), separator);
             processedPath = replaceOnce(originalPath, srcPath, deployPath);
         }
 

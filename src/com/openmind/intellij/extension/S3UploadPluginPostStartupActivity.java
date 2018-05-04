@@ -4,7 +4,10 @@ import static com.intellij.notification.NotificationType.INFORMATION;
 import static com.openmind.intellij.helper.FileHelper.STARTUP_MESSAGE_KEY;
 import static com.openmind.intellij.helper.FileHelper.STARTUP_TITLE_KEY;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -73,9 +76,14 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
                 NotificationHelper.show(project, startupMessage, INFORMATION, true, startupTitle);
             }
 
-            // NotificationHelper.scheduleRandomNotifications();
+            NotificationHelper.scheduleRandomNotifications(project, getNotifications(), TimeUnit.SECONDS.toMillis(10));
 
         });
+    }
+
+    private List<String> getNotifications() {
+        ArrayList<String> messages = new ArrayList<>();
+        return messages;
     }
 
 

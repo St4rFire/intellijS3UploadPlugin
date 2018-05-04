@@ -79,7 +79,9 @@ public class NotificationHelper
     }
 
     public static void scheduleRandomNotifications(@NotNull Project project, @NotNull List<String> messages, long period) {
-        new Timer().schedule(new RandomNotificationTimerTask(project, messages), 0, period);
+        if (!CollectionUtils.isEmpty(messages)) {
+            new Timer().schedule(new RandomNotificationTimerTask(project, messages), 0, period);
+        }
     }
 
     private static class RandomNotificationTimerTask extends TimerTask
