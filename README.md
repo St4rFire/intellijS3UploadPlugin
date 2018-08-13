@@ -158,7 +158,7 @@ deploy.source.output = /custompath/
 ## Root path 
 
 This affects the path relative to the deployed project root.  
-The default behaviour is to truncate the path at the bExampleinning of the output path, but it can be changed with the property:
+The default behaviour is to truncate the path at the beginning of the output path, but it can be changed with the property:
 ```
 deploy.auto.source.mapping = ...
 ```
