@@ -21,6 +21,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.startup.StartupActivity;
 import com.openmind.intellij.action.UploadFileToS3Action;
 import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.exception.NotConfiguredPluginException;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.AmazonS3Service;
@@ -64,7 +65,10 @@ public class S3UploadPluginPostStartupActivity implements StartupActivity
 
             } catch (Exception e) {
 
-                LOGGER.error(e);
+                if (! (e instanceof NotConfiguredPluginException)) {
+                    LOGGER.error(e);
+                }
+
                 NotificationHelper.showEvent(project, "disabled, " + e.getMessage(), INFORMATION);
             }
 

@@ -60,7 +60,7 @@ public class ScrollToClassFileAction extends AnAction {
 
 
     /**
-     * Handle action visibility, only if is a java file
+     * Handle action visibility: visible only if it is a java file
      * @param event
      */
     @Override

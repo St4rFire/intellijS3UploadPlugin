@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.java.generate.exception.PluginException;
 import org.springframework.util.CollectionUtils;
 
 import com.amazonaws.AmazonServiceException;
@@ -48,6 +49,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.openmind.intellij.bean.UploadConfig;
+import com.openmind.intellij.exception.NotConfiguredPluginException;
 import com.openmind.intellij.helper.FileHelper;
 import com.openmind.intellij.helper.NotificationHelper;
 import com.openmind.intellij.service.AmazonS3Service;
@@ -341,7 +343,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         String secretValue = getProjectSystemEnvValue(projectSecret);
 
         if (isEmpty(keyValue) || isEmpty(secretValue)) {
-            throw new IllegalArgumentException("System Variables starting with " + addProjectPrefix(EMPTY) + " not found");
+            throw new NotConfiguredPluginException("System Variables starting with " + addProjectPrefix(EMPTY) + " not found");
         }
     }
 
