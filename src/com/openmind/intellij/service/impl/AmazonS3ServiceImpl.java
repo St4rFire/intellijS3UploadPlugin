@@ -340,10 +340,10 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
         String projectKey = addProjectPrefix(AWS_SYSTEM_ACCESS_KEY);
         String projectSecret = addProjectPrefix(AWS_SYSTEM_SECRET_ACCESS_KEY);
         String keyValue = getProjectSystemEnvValue(projectKey);
-        String secretValue = getProjectSystemEnvValue(projectSecret);
+        String secretValue = getProjectSystemEnvValue(projectSecret);;
 
         if (isEmpty(keyValue) || isEmpty(secretValue)) {
-            throw new NotConfiguredPluginException("System Variables starting with " + addProjectPrefix(EMPTY) + " not found");
+            throw new NotConfiguredPluginException("System Variables " + projectKey + " and/or " + projectSecret + " not found");
         }
     }
 
@@ -352,7 +352,7 @@ public class AmazonS3ServiceImpl implements AmazonS3Service {
     }
 
     private String getProjectSystemEnvValue(String projectSystemEnv) {
-        return defaultString(System.getenv(projectSystemEnv), execEcho(projectSystemEnv));
+        return System.getenv(projectSystemEnv);
     }
 
 
